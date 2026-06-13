@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import './App.css'
 import {
   calculateTotalFootprint,
@@ -9,6 +9,8 @@ import {
   type CarbonFootprintBreakdown,
 } from './lib/carbonEngine'
 import { PersonalizedInsights } from './components/PersonalizedInsights'
+import { HistorySection } from './components/HistorySection'
+import { useHistory } from './hooks/useHistory'
 
 type DietOption = 'vegan' | 'vegetarian' | 'pescatarian' | 'meatMedium' | 'meatHigh'
 
@@ -257,6 +259,16 @@ function App() {
     energy: true,
     diet: true,
   })
+  const [saveMessage, setSaveMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null)
+  const [historyKey, setHistoryKey] = useState(0)
+  const { addEntry } = useHistory()
+
+  useEffect(() => {
+    if (saveMessage) {
+      const timer = setTimeout(() => setSaveMessage(null), 3000)
+      return () => clearTimeout(timer)
+    }
+  }, [saveMessage])
 
   const validateForm = (): boolean => {
     const newErrors: Partial<Record<keyof FormData, string>> = {}
@@ -344,6 +356,27 @@ function App() {
     }))
   }
 
+  const handleSaveToHistory = () => {
+    if (!results) return
+
+    const result = addEntry({
+      total: results.total,
+      breakdown: {
+        transport: results.transport,
+        homeEnergy: results.homeEnergy,
+        diet: results.diet,
+        goodsWaste: results.goodsAndWaste,
+      },
+    })
+
+    if (result.success) {
+      setSaveMessage({ text: 'Saved!', type: 'success' })
+      setHistoryKey((prev) => prev + 1)
+    } else {
+      setSaveMessage({ text: result.error || 'Couldn\'t save, please try again', type: 'error' })
+    }
+  }
+
   return (
     <div className="app-container">
       <header className="header">
@@ -359,10 +392,23 @@ function App() {
             <button
               type="button"
               className="btn-secondary"
+              onClick={handleSaveToHistory}
+            >
+              Save this entry to my history
+            </button>
+            {saveMessage && (
+              <div className={`save-message save-message-${saveMessage.type}`}>
+                {saveMessage.text}
+              </div>
+            )}
+            <button
+              type="button"
+              className="btn-secondary"
               onClick={() => setResults(null)}
             >
               Calculate Again
             </button>
+            <HistorySection key={historyKey} />
           </section>
         )}
 
