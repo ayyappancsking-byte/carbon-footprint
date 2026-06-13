@@ -10,7 +10,10 @@ import {
 } from './lib/carbonEngine'
 import { PersonalizedInsights } from './components/PersonalizedInsights'
 import { HistorySection } from './components/HistorySection'
+import { OnboardingModal } from './components/OnboardingModal'
 import { useHistory } from './hooks/useHistory'
+import { generatePdfReport } from './lib/pdfExport'
+import { shareResult } from './lib/shareUtils'
 
 type DietOption = 'vegan' | 'vegetarian' | 'pescatarian' | 'meatMedium' | 'meatHigh'
 
@@ -261,7 +264,16 @@ function App() {
   })
   const [saveMessage, setSaveMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null)
   const [historyKey, setHistoryKey] = useState(0)
+  const [showOnboarding, setShowOnboarding] = useState(false)
+  const [shareMessage, setShareMessage] = useState<string | null>(null)
   const { addEntry } = useHistory()
+
+  useEffect(() => {
+    const hasSeenOnboarding = localStorage.getItem('hasSeenOnboarding')
+    if (!hasSeenOnboarding) {
+      setShowOnboarding(true)
+    }
+  }, [])
 
   useEffect(() => {
     if (saveMessage) {
@@ -269,6 +281,13 @@ function App() {
       return () => clearTimeout(timer)
     }
   }, [saveMessage])
+
+  useEffect(() => {
+    if (shareMessage) {
+      const timer = setTimeout(() => setShareMessage(null), 2000)
+      return () => clearTimeout(timer)
+    }
+  }, [shareMessage])
 
   const validateForm = (): boolean => {
     const newErrors: Partial<Record<keyof FormData, string>> = {}
@@ -377,8 +396,36 @@ function App() {
     }
   }
 
+  const handleDismissOnboarding = () => {
+    setShowOnboarding(false)
+    localStorage.setItem('hasSeenOnboarding', 'true')
+  }
+
+  const handleDownloadPdf = async () => {
+    if (!results) return
+    try {
+      // We'll need to pass recommendations to this function
+      // For now, generate with empty recommendations
+      const { generatePersonalizedInsights } = await import('./lib/insightsEngine')
+      const { recommendations } = await generatePersonalizedInsights(results)
+      generatePdfReport(results, recommendations)
+    } catch (error) {
+      console.error('Failed to generate PDF:', error)
+    }
+  }
+
+  const handleShare = async () => {
+    if (!results) return
+    const success = await shareResult(results.total)
+    if (success) {
+      const hasShare = typeof navigator !== 'undefined' && 'share' in navigator
+      setShareMessage(hasShare ? 'Shared!' : 'Copied to clipboard!')
+    }
+  }
+
   return (
     <div className="app-container">
+      <OnboardingModal isOpen={showOnboarding} onDismiss={handleDismissOnboarding} />
       <header className="header">
         <h1>Carbon Footprint Awareness Platform</h1>
         <p className="subtitle">Understand, track, and reduce your carbon footprint.</p>
@@ -389,6 +436,29 @@ function App() {
           <section className="results-section">
             <ResultsBreakdown data={results} />
             <PersonalizedInsights breakdown={results} />
+            <div className="button-group">
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={handleDownloadPdf}
+                title="Download a PDF report of your carbon footprint"
+              >
+                Download as PDF
+              </button>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={handleShare}
+                title="Share your carbon footprint"
+              >
+                Share
+              </button>
+            </div>
+            {shareMessage && (
+              <div className="share-message">
+                {shareMessage}
+              </div>
+            )}
             <button
               type="button"
               className="btn-secondary"
