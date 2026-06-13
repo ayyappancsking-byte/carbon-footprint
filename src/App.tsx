@@ -8,6 +8,7 @@ import {
   type GoodsWasteInput,
   type CarbonFootprintBreakdown,
 } from './lib/carbonEngine'
+import { PersonalizedInsights } from './components/PersonalizedInsights'
 
 type DietOption = 'vegan' | 'vegetarian' | 'pescatarian' | 'meatMedium' | 'meatHigh'
 
@@ -354,6 +355,7 @@ function App() {
         {results && (
           <section className="results-section">
             <ResultsBreakdown data={results} />
+            <PersonalizedInsights breakdown={results} />
             <button
               type="button"
               className="btn-secondary"
