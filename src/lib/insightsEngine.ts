@@ -1,3 +1,4 @@
+import { GoogleGenAI } from '@google/genai'
 import type { CarbonFootprintBreakdown } from './carbonEngine'
 
 export interface Recommendation {
@@ -110,50 +111,24 @@ async function callGeminiAPI(
   apiKey: string,
 ): Promise<Recommendation[] | null> {
   try {
-    const prompt = `Based on this carbon footprint breakdown (in tonnes CO2e/year):
-- Transport: ${breakdown.transport.toFixed(2)}t
-- Home Energy: ${breakdown.homeEnergy.toFixed(2)}t
-- Diet: ${breakdown.diet.toFixed(2)}t
-- Goods & Waste: ${breakdown.goodsAndWaste.toFixed(2)}t
-- Total: ${breakdown.total.toFixed(2)}t
+    const ai = new GoogleGenAI({ apiKey })
 
-Generate 2-4 personalized, actionable recommendations targeting the largest categories.
-Each recommendation should include:
-- category: one of "Transport", "Home Energy", "Diet", or "Goods & Waste"
-- action: specific, achievable action the user can take
-- potentialSavingKg: realistic annual CO2e reduction in kg
+    const prompt = `Given this carbon footprint breakdown in kg CO2e per year:
+    Transport: ${(breakdown.transport * 1000).toFixed(0)}
+    Home Energy: ${(breakdown.homeEnergy * 1000).toFixed(0)}
+    Diet: ${(breakdown.diet * 1000).toFixed(0)}
+    Goods & Waste: ${(breakdown.goodsAndWaste * 1000).toFixed(0)}
 
-Respond with ONLY a valid JSON array of objects with these exact fields.`
+    Give 2-4 personalized recommendations targeting the biggest
+    categories first. Return ONLY a JSON array:
+    [{"category": "diet", "action": "...", "potentialSavingKg": 500}]`
 
-    const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              {
-                text: prompt,
-              },
-            ],
-          },
-        ],
-        generationConfig: {
-          temperature: 0.7,
-          maxOutputTokens: 500,
-        },
-      }),
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: prompt,
     })
 
-    if (!response.ok) {
-      return null
-    }
-
-    const data = await response.json()
-    const content = data.candidates?.[0]?.content?.parts?.[0]?.text
+    const content = response.text
 
     if (!content) {
       return null
@@ -170,11 +145,17 @@ Respond with ONLY a valid JSON array of objects with these exact fields.`
       return null
     }
 
-    return parsed.filter((item) =>
-      item.category &&
-      item.action &&
-      typeof item.potentialSavingKg === 'number'
-    ).slice(0, 4)
+    return parsed
+      .filter((item) =>
+        item.category &&
+        item.action &&
+        typeof item.potentialSavingKg === 'number'
+      )
+      .map((item) => ({
+        ...item,
+        category: item.category.charAt(0).toUpperCase() + item.category.slice(1) as Recommendation['category'],
+      }))
+      .slice(0, 4)
   } catch {
     return null
   }

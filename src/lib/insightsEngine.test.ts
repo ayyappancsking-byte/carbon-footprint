@@ -2,6 +2,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { generatePersonalizedInsights } from './insightsEngine'
 import type { CarbonFootprintBreakdown } from './carbonEngine'
 
+vi.mock('@google/genai', () => ({
+  GoogleGenAI: vi.fn().mockImplementation(() => ({
+    models: {
+      generateContent: vi.fn().mockRejectedValue(new Error('API Error')),
+    },
+  })),
+}))
+
 describe('insightsEngine - Fallback Logic', () => {
   beforeEach(() => {
     vi.stubGlobal('import', {
