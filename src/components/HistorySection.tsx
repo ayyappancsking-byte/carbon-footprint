@@ -9,11 +9,13 @@ import {
   ResponsiveContainer,
 } from 'recharts'
 import { useHistory, type HistoryEntry } from '../hooks/useHistory'
+import { HistoryDetailModal } from './HistoryDetailModal'
 import '../styles/HistorySection.css'
 
 export function HistorySection() {
   const { getHistory, deleteEntry } = useHistory()
   const [history, setHistory] = useState<HistoryEntry[]>([])
+  const [selectedEntry, setSelectedEntry] = useState<HistoryEntry | null>(null)
 
   useEffect(() => {
     const entries = getHistory()
@@ -35,6 +37,13 @@ export function HistorySection() {
     total: parseFloat(entry.total.toFixed(2)),
     fullDate: entry.date,
   }))
+
+  const handleRowClick = (entry: HistoryEntry, event: React.MouseEvent<HTMLTableRowElement>) => {
+    if ((event.target as HTMLElement).closest('.delete-btn')) {
+      return
+    }
+    setSelectedEntry(entry)
+  }
 
   return (
     <div className="history-section">
@@ -103,7 +112,11 @@ export function HistorySection() {
             </thead>
             <tbody>
               {history.map((entry) => (
-                <tr key={entry.date}>
+                <tr
+                  key={entry.date}
+                  className="history-row-clickable"
+                  onClick={(e) => handleRowClick(entry, e)}
+                >
                   <td>
                     {new Date(entry.date).toLocaleDateString('en-US', {
                       year: 'numeric',
@@ -130,6 +143,12 @@ export function HistorySection() {
           </table>
         </div>
       )}
+
+      <HistoryDetailModal
+        entry={selectedEntry}
+        isOpen={selectedEntry !== null}
+        onClose={() => setSelectedEntry(null)}
+      />
     </div>
   )
 }

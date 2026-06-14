@@ -136,6 +136,15 @@
   background: rgba(170, 59, 255, 0.02);
 }
 
+.history-row-clickable {
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.history-row-clickable:hover {
+  background: rgba(168, 85, 247, 0.08);
+}
+
 .history-table tbody tr:last-child td {
   border-bottom: none;
 }
@@ -181,6 +190,10 @@
 
   .history-table tbody tr:hover {
     background: rgba(192, 132, 252, 0.05);
+  }
+
+  .history-row-clickable:hover {
+    background: rgba(192, 132, 252, 0.1);
   }
 }
 
