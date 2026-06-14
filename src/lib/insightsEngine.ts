@@ -15,6 +15,9 @@ export interface CategoryBreakdown {
   total: number
 }
 
+let lastAPICallTime = 0
+const API_CALL_COOLDOWN_MS = 4000
+
 function rankCategories(breakdown: CategoryBreakdown): Array<{
   name: 'Transport' | 'Home Energy' | 'Diet' | 'Goods & Waste'
   value: number
@@ -110,7 +113,15 @@ async function callGeminiAPI(
   breakdown: CategoryBreakdown,
   apiKey: string,
 ): Promise<Recommendation[] | null> {
+  const now = Date.now()
+  const timeSinceLastCall = now - lastAPICallTime
+
+  if (timeSinceLastCall < API_CALL_COOLDOWN_MS) {
+    return null
+  }
+
   try {
+    lastAPICallTime = now
     const ai = new GoogleGenAI({ apiKey })
 
     const prompt = `Given this carbon footprint breakdown in kg CO2e per year:
@@ -156,7 +167,12 @@ async function callGeminiAPI(
         category: item.category.charAt(0).toUpperCase() + item.category.slice(1) as Recommendation['category'],
       }))
       .slice(0, 4)
-  } catch {
+  } catch (error) {
+    const err = error as { status?: number; message?: string }
+    const status = err?.status
+    if (status === 429 || status === 503) {
+      return null
+    }
     return null
   }
 }
