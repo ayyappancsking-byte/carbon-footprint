@@ -129,7 +129,7 @@ Respond with ONLY a valid JSON array of objects with these exact fields.`
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-goog-api-key': apiKey,
+        'Authorization': `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
         contents: [
