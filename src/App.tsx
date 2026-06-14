@@ -459,25 +459,27 @@ function App() {
                 {shareMessage}
               </div>
             )}
-            <button
-              type="button"
-              className="btn-secondary"
-              onClick={handleSaveToHistory}
-            >
-              Save this entry to my history
-            </button>
+            <div className="button-group">
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={handleSaveToHistory}
+              >
+                Save this entry to my history
+              </button>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => setResults(null)}
+              >
+                Calculate Again
+              </button>
+            </div>
             {saveMessage && (
               <div className={`save-message save-message-${saveMessage.type}`}>
                 {saveMessage.text}
               </div>
             )}
-            <button
-              type="button"
-              className="btn-secondary"
-              onClick={() => setResults(null)}
-            >
-              Calculate Again
-            </button>
             <HistorySection key={historyKey} />
           </section>
         )}
