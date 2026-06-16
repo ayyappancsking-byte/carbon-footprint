@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import { type HistoryEntry } from '../hooks/useHistory'
 import '../styles/HistoryDetailModal.css'
 
@@ -8,6 +9,50 @@ interface HistoryDetailModalProps {
 }
 
 export function HistoryDetailModal({ entry, isOpen, onClose }: HistoryDetailModalProps) {
+  const dialogRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!isOpen || !dialogRef.current) return
+
+    const dialog = dialogRef.current
+    const previouslyFocused = document.activeElement as HTMLElement | null
+
+    const focusableElements = dialog.querySelectorAll<HTMLElement>(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    )
+    const firstElement = focusableElements[0]
+    const lastElement = focusableElements[focusableElements.length - 1]
+
+    firstElement?.focus()
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        onClose()
+        previouslyFocused?.focus()
+      }
+
+      if (event.key === 'Tab' && focusableElements.length > 0) {
+        if (event.shiftKey) {
+          if (document.activeElement === firstElement) {
+            event.preventDefault()
+            lastElement?.focus()
+          }
+        } else if (document.activeElement === lastElement) {
+          event.preventDefault()
+          firstElement?.focus()
+        }
+      }
+    }
+
+    dialog.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      dialog.removeEventListener('keydown', handleKeyDown)
+      previouslyFocused?.focus()
+    }
+  }, [isOpen, onClose])
+
   if (!isOpen || !entry) return null
 
   const hasBreakdown = entry.breakdown && Object.values(entry.breakdown).some(v => v > 0)
@@ -21,9 +66,17 @@ export function HistoryDetailModal({ entry, isOpen, onClose }: HistoryDetailModa
 
   return (
     <div className="detail-modal-overlay" onClick={onClose}>
-      <div className="detail-modal" onClick={(e) => e.stopPropagation()}>
+      <div
+        ref={dialogRef}
+        className="detail-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="history-detail-title"
+        tabIndex={-1}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="detail-modal-header">
-          <h2>Entry Details</h2>
+          <h2 id="history-detail-title">Entry Details</h2>
           <button
             type="button"
             className="detail-modal-close"

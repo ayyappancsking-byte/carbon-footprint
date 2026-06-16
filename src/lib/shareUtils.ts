@@ -1,9 +1,10 @@
 export async function shareResult(total: number): Promise<boolean> {
-  const shareText = `My carbon footprint is ${total.toFixed(2)} tCO2e/year — calculate yours and start reducing it!`
+  const shareText = `My carbon footprint is ${total.toFixed(2)} tCO2e/year - calculate yours and start reducing it!`
+  const nav = typeof navigator === 'undefined' ? null : navigator
 
-  if (navigator.share) {
+  if (nav?.share) {
     try {
-      await navigator.share({
+      await nav.share({
         text: shareText,
         title: 'Carbon Footprint Report',
       })
@@ -17,7 +18,11 @@ export async function shareResult(total: number): Promise<boolean> {
   }
 
   try {
-    await navigator.clipboard.writeText(shareText)
+    const clipboard = nav?.clipboard
+    if (!clipboard?.writeText) {
+      return false
+    }
+    await clipboard.writeText(shareText)
     return true
   } catch {
     console.error('Clipboard copy failed')

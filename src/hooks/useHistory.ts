@@ -11,16 +11,51 @@ export interface HistoryEntry {
   }
 }
 
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value)
+}
+
+function isValidHistoryEntry(value: unknown): value is HistoryEntry {
+  if (typeof value !== 'object' || value === null) {
+    return false
+  }
+
+  const candidate = value as Partial<HistoryEntry>
+  const breakdown = candidate.breakdown
+
+  return (
+    typeof candidate.date === 'string' &&
+    !Number.isNaN(new Date(candidate.date).getTime()) &&
+    isFiniteNumber(candidate.total) &&
+    typeof breakdown === 'object' &&
+    breakdown !== null &&
+    isFiniteNumber(breakdown.transport) &&
+    isFiniteNumber(breakdown.homeEnergy) &&
+    isFiniteNumber(breakdown.diet) &&
+    isFiniteNumber(breakdown.goodsWaste)
+  )
+}
+
+function isValidHistoryEntryInput(entry: Omit<HistoryEntry, 'date'>): boolean {
+  return (
+    isFiniteNumber(entry.total) &&
+    isFiniteNumber(entry.breakdown.transport) &&
+    isFiniteNumber(entry.breakdown.homeEnergy) &&
+    isFiniteNumber(entry.breakdown.diet) &&
+    isFiniteNumber(entry.breakdown.goodsWaste)
+  )
+}
+
 export function useHistory() {
   const getHistory = (): HistoryEntry[] => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY)
       if (!stored) return []
-      const parsed = JSON.parse(stored)
+      const parsed: unknown = JSON.parse(stored)
       if (!Array.isArray(parsed)) return []
-      return parsed.sort((a: HistoryEntry, b: HistoryEntry) =>
-        new Date(b.date).getTime() - new Date(a.date).getTime()
-      )
+      return parsed
+        .filter(isValidHistoryEntry)
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
     } catch {
       return []
     }
@@ -28,6 +63,9 @@ export function useHistory() {
 
   const addEntry = (entry: Omit<HistoryEntry, 'date'>): { success: boolean; error?: string } => {
     try {
+      if (!isValidHistoryEntryInput(entry)) {
+        return { success: false, error: 'Invalid entry data' }
+      }
       const history = getHistory()
       const newEntry: HistoryEntry = {
         ...entry,

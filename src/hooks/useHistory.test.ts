@@ -103,6 +103,40 @@ describe('useHistory', () => {
     expect(history).toEqual([])
   })
 
+  it('should filter malformed entries from stored history', () => {
+    localStorage.setItem(
+      'carbon_footprint_history',
+      JSON.stringify([
+        {
+          date: '2024-06-15T10:30:00Z',
+          total: 5.5,
+          breakdown: {
+            transport: 2,
+            homeEnergy: 1.5,
+            diet: 1,
+            goodsWaste: 1,
+          },
+        },
+        {
+          date: 'not-a-date',
+          total: 'oops',
+          breakdown: {
+            transport: 2,
+            homeEnergy: 1.5,
+            diet: 1,
+            goodsWaste: 1,
+          },
+        },
+      ])
+    )
+
+    const { getHistory } = useHistory()
+
+    const history = getHistory()
+    expect(history).toHaveLength(1)
+    expect(history[0].total).toBe(5.5)
+  })
+
   it('should return empty array if localStorage is disabled', () => {
     const originalLocalStorage = globalThis.localStorage
 
@@ -158,6 +192,24 @@ describe('useHistory', () => {
     expect(result.error).toBe('Storage quota exceeded')
 
     vi.restoreAllMocks()
+  })
+
+  it('should reject non-finite values when saving', () => {
+    const { addEntry, getHistory } = useHistory()
+
+    const result = addEntry({
+      total: Number.NaN,
+      breakdown: {
+        transport: 2,
+        homeEnergy: 1.5,
+        diet: 1,
+        goodsWaste: 1,
+      },
+    })
+
+    expect(result.success).toBe(false)
+    expect(result.error).toBe('Invalid entry data')
+    expect(getHistory()).toEqual([])
   })
 
   it('should preserve breakdown structure in saved entries', () => {

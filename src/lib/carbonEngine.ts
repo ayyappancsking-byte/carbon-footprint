@@ -4,6 +4,8 @@
  * All emission factors from DEFRA 2023, EPA, IPCC, and Our World in Data
  */
 
+import { WEEKS_PER_YEAR, MONTHS_PER_YEAR } from '../constants/thresholds';
+
 // ============================================================================
 // EMISSION FACTORS (all values in kg CO2e per unit)
 // ============================================================================
@@ -137,12 +139,12 @@ export interface CarbonFootprintBreakdown {
 export function calculateTransportEmissions(input: TransportInput): TransportEmissionsResult {
   // Car emissions: weekly km * 52 weeks * emission factor
   const carEmissions =
-    input.carKmPerWeek * 52 * CAR_EMISSIONS_FACTORS[input.fuelType];
+    input.carKmPerWeek * WEEKS_PER_YEAR * CAR_EMISSIONS_FACTORS[input.fuelType];
 
   // Transit emissions: weekly km * 52 weeks * emission factor
   const transitType = input.transitType || 'average';
   const transitEmissions =
-    input.transitKmPerWeek * 52 * TRANSIT_EMISSIONS_FACTORS[transitType];
+    input.transitKmPerWeek * WEEKS_PER_YEAR * TRANSIT_EMISSIONS_FACTORS[transitType];
 
   // Flight emissions
   const shortFlightEmissions =
@@ -166,16 +168,20 @@ export function calculateTransportEmissions(input: TransportInput): TransportEmi
 /**
  * Calculate annual CO2e emissions from home energy
  * Electricity and gas inputs are monthly; multiplied by 12 for annual calculation
- * Household size affects heating/cooling per capita
+ * Household size splits the annual total into per-capita emissions
  */
 export function calculateHomeEnergyEmissions(input: HomeEnergyInput): HomeEnergyResult {
+  const householdSize = Math.max(1, input.householdSize)
+
   // Electricity: monthly kWh * 12 months * emission factor
   const electricityEmissions =
-    input.electricityKwhPerMonth * 12 * ENERGY_EMISSIONS_FACTORS.electricity;
+    (input.electricityKwhPerMonth * MONTHS_PER_YEAR * ENERGY_EMISSIONS_FACTORS.electricity) /
+    householdSize;
 
   // Gas: monthly kWh * 12 months * emission factor
   const gasEmissions =
-    input.gasKwhPerMonth * 12 * ENERGY_EMISSIONS_FACTORS.gas;
+    (input.gasKwhPerMonth * MONTHS_PER_YEAR * ENERGY_EMISSIONS_FACTORS.gas) /
+    householdSize;
 
   return {
     electricity: electricityEmissions,
@@ -199,10 +205,10 @@ export function calculateDietEmissions(dietType: DietType): number {
  */
 export function calculateGoodsWasteEmissions(input: GoodsWasteInput): GoodsWasteResult {
   // Goods: monthly spending £ * 12 months * emission factor
-  const goodsEmissions = input.goodsSpendingPerMonth * 12 * GOODS_EMISSIONS.spendingEmissions;
+  const goodsEmissions = input.goodsSpendingPerMonth * MONTHS_PER_YEAR * GOODS_EMISSIONS.spendingEmissions;
 
   // Waste: weekly kg * 52 weeks * emission factor
-  const wasteEmissions = input.landfillKgPerWeek * 52 * GOODS_EMISSIONS.landfillEmissions;
+  const wasteEmissions = input.landfillKgPerWeek * WEEKS_PER_YEAR * GOODS_EMISSIONS.landfillEmissions;
 
   return {
     goods: goodsEmissions,

@@ -114,14 +114,14 @@ async function callGeminiAPI(
   apiKey: string,
 ): Promise<Recommendation[] | null> {
   const now = Date.now()
-  const timeSinceLastCall = now - lastAPICallTime
 
-  if (timeSinceLastCall < API_CALL_COOLDOWN_MS) {
+  if (lastAPICallTime > 0 && now - lastAPICallTime < API_CALL_COOLDOWN_MS) {
     return null
   }
 
+  lastAPICallTime = now
+
   try {
-    lastAPICallTime = now
     const ai = new GoogleGenAI({ apiKey })
 
     const prompt = `Given this carbon footprint breakdown in kg CO2e per year:
@@ -141,18 +141,25 @@ async function callGeminiAPI(
 
     const content = response.text
 
-    if (!content) {
-      return null
-    }
+    if (!content) return null
 
     const jsonMatch = content.match(/\[[\s\S]*\]/)
-    if (!jsonMatch) {
+    if (!jsonMatch) return null
+
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(jsonMatch[0])
+    } catch {
       return null
     }
 
-    const parsed = JSON.parse(jsonMatch[0])
+    if (!Array.isArray(parsed)) return null
 
-    if (!Array.isArray(parsed)) {
+    if (!parsed.every(item =>
+      typeof item.category === 'string' &&
+      typeof item.action === 'string' &&
+      typeof item.potentialSavingKg === 'number'
+    )) {
       return null
     }
 
@@ -164,9 +171,12 @@ async function callGeminiAPI(
       )
       .map((item) => ({
         ...item,
-        category: item.category.charAt(0).toUpperCase() + item.category.slice(1) as Recommendation['category'],
+        category: (
+          item.category.charAt(0).toUpperCase() + item.category.slice(1)
+        ) as Recommendation['category'],
       }))
       .slice(0, 4)
+
   } catch (error) {
     const err = error as { status?: number; message?: string }
     const status = err?.status

@@ -11,8 +11,9 @@ import {
 import { PersonalizedInsights } from './components/PersonalizedInsights'
 import { HistorySection } from './components/HistorySection'
 import { OnboardingModal } from './components/OnboardingModal'
+import { GoalSetting } from './components/GoalSetting'
+import { ResultsBreakdown } from './components/ResultsBreakdown'
 import { useHistory } from './hooks/useHistory'
-import { generatePdfReport } from './lib/pdfExport'
 import { shareResult } from './lib/shareUtils'
 
 type DietOption = 'vegan' | 'vegetarian' | 'pescatarian' | 'meatMedium' | 'meatHigh'
@@ -48,6 +49,18 @@ const DEFAULT_FORM_DATA: FormData = {
   landfillKgPerWeek: 0,
 }
 
+const NUMERIC_FIELDS = new Set<keyof FormData>([
+  'carKmPerWeek',
+  'transitKmPerWeek',
+  'shortFlightsPerYear',
+  'longFlightsPerYear',
+  'electricityKwhPerMonth',
+  'gasKwhPerMonth',
+  'householdSize',
+  'goodsSpendingPerMonth',
+  'landfillKgPerWeek',
+])
+
 const TOOLTIP_TEXTS: Record<string, string> = {
   carDistance:
     'Average distance you drive per week. Include commute, shopping, leisure.',
@@ -69,10 +82,32 @@ const TOOLTIP_TEXTS: Record<string, string> = {
   waste: 'Waste going to landfill per week in kg. Include general household waste.',
 }
 
+function readOnboardingSeen(): boolean {
+  try {
+    return localStorage.getItem('hasSeenOnboarding') === 'true'
+  } catch {
+    return false
+  }
+}
+
+function markOnboardingSeen(): void {
+  try {
+    localStorage.setItem('hasSeenOnboarding', 'true')
+  } catch {
+    // Ignore storage failures so the app still works in restricted browsers.
+  }
+}
+
+function createSectionId(title: string): string {
+  return `${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-content`
+}
+
 function Tooltip({
+  label,
   text,
   id,
 }: {
+  label: string
   text: string
   id: string
 }) {
@@ -83,7 +118,10 @@ function Tooltip({
       <button
         type="button"
         className="tooltip-btn"
-        aria-describedby={id}
+        aria-label={`More information about ${label}`}
+        aria-expanded={showTooltip}
+        aria-controls={id}
+        aria-describedby={showTooltip ? id : undefined}
         onClick={() => setShowTooltip(!showTooltip)}
       >
         (i)
@@ -112,7 +150,7 @@ function FormField({
     <div className="form-field">
       <label>
         {label}
-        <Tooltip text={tooltipText} id={tooltipId} />
+        <Tooltip label={label} text={tooltipText} id={tooltipId} />
       </label>
       {children}
     </div>
@@ -127,129 +165,27 @@ interface SectionProps {
 }
 
 function FormSection({ title, children, isOpen, onToggle }: SectionProps) {
+  const contentId = createSectionId(title)
+
   return (
     <fieldset className={`form-section ${isOpen ? 'open' : ''}`}>
+      <legend className="sr-only">{title}</legend>
       <button
         type="button"
         className="section-toggle"
         onClick={onToggle}
         aria-expanded={isOpen}
+        aria-controls={contentId}
       >
         <span className="toggle-icon">{isOpen ? '−' : '+'}</span>
-        <legend>{title}</legend>
+        <span>{title}</span>
       </button>
-      {isOpen && <div className="section-content">{children}</div>}
-    </fieldset>
-  )
-}
-
-function ResultsBreakdown({ data }: { data: CarbonFootprintBreakdown }) {
-  const categories = [
-    { label: 'Transport', value: data.transport, color: '#2563eb' },
-    { label: 'Home Energy', value: data.homeEnergy, color: '#f97316' },
-    { label: 'Diet', value: data.diet, color: '#22c55e' },
-    { label: 'Goods & Waste', value: data.goodsAndWaste, color: '#a855f7' },
-  ]
-
-  const maxValue = Math.max(...categories.map((c) => c.value))
-  const sustainableTarget = 2
-  const globalAverage = 4.7
-
-  let statusClass = 'status-green'
-  let statusText = 'On target'
-  if (data.total > globalAverage * 1.5) {
-    statusClass = 'status-red'
-    statusText = 'Well above global average'
-  } else if (data.total > sustainableTarget * 1.5) {
-    statusClass = 'status-amber'
-    statusText = 'Above sustainable target'
-  }
-
-  const globalCompare = (data.total / globalAverage).toFixed(2)
-  const targetCompare = (data.total / sustainableTarget).toFixed(2)
-
-  return (
-    <div className="results-container" role="region" aria-live="polite" aria-label="Carbon footprint results">
-      <div className="total-result">
-        <span className="total-number">{data.total.toFixed(2)}</span>
-        <span className="total-unit">t CO₂e/year</span>
-      </div>
-
-      <div className={`status-badge ${statusClass}`}>{statusText}</div>
-
-      <p className="comparison-text">
-        That is <strong>{targetCompare}x</strong> the sustainable target (2t) and{' '}
-        <strong>{globalCompare}x</strong> the global average (4.7t)
-      </p>
-
-      <div className="breakdown-chart">
-        <h3>Breakdown by Category</h3>
-        <div className="chart-bars">
-          {categories.map((cat) => (
-            <div key={cat.label} className="chart-bar-wrapper">
-              <div
-                className="chart-bar"
-                style={{
-                  width: `${(cat.value / maxValue) * 100}%`,
-                  backgroundColor: cat.color,
-                }}
-              >
-                <span className="bar-label">
-                  {cat.label}: {cat.value.toFixed(2)}t
-                </span>
-              </div>
-            </div>
-          ))}
+      {isOpen && (
+        <div className="section-content" id={contentId}>
+          {children}
         </div>
-      </div>
-
-      <div className="breakdown-table">
-        <h3>Detailed Breakdown</h3>
-        <table>
-          <thead>
-            <tr>
-              <th>Category</th>
-              <th>Details</th>
-              <th>Emissions (t CO₂e)</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td rowSpan={3}>Transport</td>
-              <td>Car</td>
-              <td>{data.breakdown.transportDetail.car.toFixed(3)}</td>
-            </tr>
-            <tr>
-              <td>Public Transit</td>
-              <td>{data.breakdown.transportDetail.transit.toFixed(3)}</td>
-            </tr>
-            <tr>
-              <td>Flights</td>
-              <td>{data.breakdown.transportDetail.flights.toFixed(3)}</td>
-            </tr>
-            <tr>
-              <td rowSpan={2}>Home Energy</td>
-              <td>Electricity</td>
-              <td>{data.breakdown.homeEnergyDetail.electricity.toFixed(3)}</td>
-            </tr>
-            <tr>
-              <td>Gas</td>
-              <td>{data.breakdown.homeEnergyDetail.gas.toFixed(3)}</td>
-            </tr>
-            <tr>
-              <td>Diet</td>
-              <td>Food & Beverages</td>
-              <td>{data.diet.toFixed(3)}</td>
-            </tr>
-            <tr>
-              <td>Goods & Waste</td>
-              <td>Purchases & Landfill</td>
-              <td>{data.goodsAndWaste.toFixed(3)}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
+      )}
+    </fieldset>
   )
 }
 
@@ -264,16 +200,10 @@ function App() {
   })
   const [saveMessage, setSaveMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null)
   const [historyKey, setHistoryKey] = useState(0)
-  const [showOnboarding, setShowOnboarding] = useState(false)
+  const [calculationKey, setCalculationKey] = useState(0)
+  const [showOnboarding, setShowOnboarding] = useState(() => !readOnboardingSeen())
   const [shareMessage, setShareMessage] = useState<string | null>(null)
   const { addEntry } = useHistory()
-
-  useEffect(() => {
-    const hasSeenOnboarding = localStorage.getItem('hasSeenOnboarding')
-    if (!hasSeenOnboarding) {
-      setShowOnboarding(true)
-    }
-  }, [])
 
   useEffect(() => {
     if (saveMessage) {
@@ -292,31 +222,31 @@ function App() {
   const validateForm = (): boolean => {
     const newErrors: Partial<Record<keyof FormData, string>> = {}
 
-    if (formData.carKmPerWeek < 0 || formData.carKmPerWeek > 5000) {
+    if (isNaN(formData.carKmPerWeek) || formData.carKmPerWeek < 0 || formData.carKmPerWeek > 5000) {
       newErrors.carKmPerWeek = 'Car distance must be between 0-5000 km/week'
     }
-    if (formData.transitKmPerWeek < 0 || formData.transitKmPerWeek > 5000) {
+    if (isNaN(formData.transitKmPerWeek) || formData.transitKmPerWeek < 0 || formData.transitKmPerWeek > 5000) {
       newErrors.transitKmPerWeek = 'Transit distance must be between 0-5000 km/week'
     }
-    if (formData.shortFlightsPerYear < 0 || formData.shortFlightsPerYear > 100) {
+    if (isNaN(formData.shortFlightsPerYear) || formData.shortFlightsPerYear < 0 || formData.shortFlightsPerYear > 100) {
       newErrors.shortFlightsPerYear = 'Short-haul flights must be between 0-100/year'
     }
-    if (formData.longFlightsPerYear < 0 || formData.longFlightsPerYear > 100) {
+    if (isNaN(formData.longFlightsPerYear) || formData.longFlightsPerYear < 0 || formData.longFlightsPerYear > 100) {
       newErrors.longFlightsPerYear = 'Long-haul flights must be between 0-100/year'
     }
-    if (formData.electricityKwhPerMonth < 0 || formData.electricityKwhPerMonth > 2000) {
+    if (isNaN(formData.electricityKwhPerMonth) || formData.electricityKwhPerMonth < 0 || formData.electricityKwhPerMonth > 2000) {
       newErrors.electricityKwhPerMonth = 'Electricity must be between 0-2000 kWh/month'
     }
-    if (formData.gasKwhPerMonth < 0 || formData.gasKwhPerMonth > 2000) {
+    if (isNaN(formData.gasKwhPerMonth) || formData.gasKwhPerMonth < 0 || formData.gasKwhPerMonth > 2000) {
       newErrors.gasKwhPerMonth = 'Gas must be between 0-2000 kWh/month'
     }
-    if (formData.householdSize < 1 || formData.householdSize > 20) {
+    if (isNaN(formData.householdSize) || formData.householdSize < 1 || formData.householdSize > 20) {
       newErrors.householdSize = 'Household size must be between 1-20'
     }
-    if (formData.goodsSpendingPerMonth < 0 || formData.goodsSpendingPerMonth > 10000) {
+    if (isNaN(formData.goodsSpendingPerMonth) || formData.goodsSpendingPerMonth < 0 || formData.goodsSpendingPerMonth > 10000) {
       newErrors.goodsSpendingPerMonth = 'Goods spending must be between 0-10000/month'
     }
-    if (formData.landfillKgPerWeek < 0 || formData.landfillKgPerWeek > 200) {
+    if (isNaN(formData.landfillKgPerWeek) || formData.landfillKgPerWeek < 0 || formData.landfillKgPerWeek > 200) {
       newErrors.landfillKgPerWeek = 'Landfill waste must be between 0-200 kg/week'
     }
 
@@ -325,10 +255,21 @@ function App() {
   }
 
   const handleInputChange = (key: keyof FormData, value: string | number) => {
-    setFormData((prev) => ({
-      ...prev,
-      [key]: typeof value === 'string' ? (isNaN(Number(value)) ? value : Number(value)) : value,
-    }))
+    if (typeof value === 'string' && NUMERIC_FIELDS.has(key)) {
+      if (value === '') {
+        setFormData((prev) => ({ ...prev, [key]: 0 } as FormData))
+      } else {
+        const parsed = Number(value)
+        if (Number.isNaN(parsed)) {
+          setErrors((prev) => ({ ...prev, [key]: 'Please enter a valid number' }))
+          return
+        }
+        setFormData((prev) => ({ ...prev, [key]: parsed } as FormData))
+      }
+    } else {
+      setFormData((prev) => ({ ...prev, [key]: value } as FormData))
+    }
+
     if (errors[key]) {
       setErrors((prev) => {
         const newErrors = { ...prev }
@@ -365,7 +306,14 @@ function App() {
 
     const breakdown = calculateTotalFootprint(transportInput, energyInput, dietType, goodsWasteInput)
     setResults(breakdown)
-    window.scrollTo({ top: 0, behavior: 'smooth' })
+    setCalculationKey((prev) => prev + 1)
+    if (typeof navigator === 'undefined' || !navigator.userAgent.includes('jsdom')) {
+      try {
+        window.scrollTo({ top: 0, behavior: 'smooth' })
+      } catch {
+        // Some browsers do not support smooth scrolling.
+      }
+    }
   }
 
   const toggleSection = (section: keyof typeof openSections) => {
@@ -398,15 +346,14 @@ function App() {
 
   const handleDismissOnboarding = () => {
     setShowOnboarding(false)
-    localStorage.setItem('hasSeenOnboarding', 'true')
+    markOnboardingSeen()
   }
 
   const handleDownloadPdf = async () => {
     if (!results) return
     try {
-      // We'll need to pass recommendations to this function
-      // For now, generate with empty recommendations
       const { generatePersonalizedInsights } = await import('./lib/insightsEngine')
+      const { generatePdfReport } = await import('./lib/pdfExport')
       const { recommendations } = await generatePersonalizedInsights(results)
       generatePdfReport(results, recommendations)
     } catch (error) {
@@ -425,17 +372,20 @@ function App() {
 
   return (
     <div className="app-container">
+      <a href="#main-content" className="skip-link">
+        Skip to main content
+      </a>
       <OnboardingModal isOpen={showOnboarding} onDismiss={handleDismissOnboarding} />
       <header className="header">
         <h1>Carbon Footprint Awareness Platform</h1>
         <p className="subtitle">Understand, track, and reduce your carbon footprint.</p>
       </header>
 
-      <main className="main-content">
+      <main className="main-content" id="main-content">
         {results && (
           <section className="results-section">
             <ResultsBreakdown data={results} />
-            <PersonalizedInsights breakdown={results} />
+            <PersonalizedInsights key={calculationKey} breakdown={results} />
             <div className="button-group">
               <button
                 type="button"
@@ -480,6 +430,7 @@ function App() {
                 {saveMessage.text}
               </div>
             )}
+            <GoalSetting onGoalChange={() => setHistoryKey((prev) => prev + 1)} />
             <HistorySection key={historyKey} />
           </section>
         )}

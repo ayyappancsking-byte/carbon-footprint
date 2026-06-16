@@ -1,6 +1,7 @@
 import jsPDF from 'jspdf'
 import type { CarbonFootprintBreakdown } from './carbonEngine'
 import type { Recommendation } from './insightsEngine'
+import { SUSTAINABLE_TARGET, GLOBAL_AVERAGE } from '../constants/emissionTargets'
 
 export function generatePdfReport(
   breakdown: CarbonFootprintBreakdown,
@@ -38,13 +39,11 @@ export function generatePdfReport(
 
   doc.setFontSize(10)
   doc.setTextColor(80)
-  const sustainableTarget = 2
-  const globalAverage = 4.7
-  const targetCompare = (breakdown.total / sustainableTarget).toFixed(2)
-  const globalCompare = (breakdown.total / globalAverage).toFixed(2)
+  const targetCompare = (breakdown.total / SUSTAINABLE_TARGET).toFixed(2)
+  const globalCompare = (breakdown.total / GLOBAL_AVERAGE).toFixed(2)
 
   doc.text(
-    `${targetCompare}x sustainable target (2t) • ${globalCompare}x global average (4.7t)`,
+    `${targetCompare}x sustainable target (${SUSTAINABLE_TARGET}t) • ${globalCompare}x global average (${GLOBAL_AVERAGE}t)`,
     margin,
     yPosition,
   )

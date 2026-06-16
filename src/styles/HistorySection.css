@@ -79,6 +79,15 @@
   overflow: hidden;
 }
 
+.chart-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 500;
+}
+
 @media (prefers-color-scheme: dark) {
   .chart-container {
     background: #2e303a;
@@ -143,6 +152,15 @@
 
 .history-row-clickable:hover {
   background: rgba(168, 85, 247, 0.08);
+}
+
+.history-row-clickable:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.history-row-clickable:focus-visible td {
+  background: rgba(168, 85, 247, 0.12);
 }
 
 .history-table tbody tr:last-child td {

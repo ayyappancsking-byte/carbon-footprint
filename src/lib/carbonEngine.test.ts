@@ -91,9 +91,10 @@ describe('Carbon Calculation Engine', () => {
   /**
    * Test 5: Home Energy - Electricity and gas calculations
    * Input: 300 kWh/month electricity, 100 kWh/month gas
-   * Electricity: 300 * 12 * 0.192 = 691.2 kg CO2
-   * Gas: 100 * 12 * 0.185 = 222 kg CO2
-   * Total: 913.2 kg CO2
+   * Household size of 2 splits the annual energy total per person
+   * Electricity: 300 * 12 * 0.192 / 2 = 345.6 kg CO2
+   * Gas: 100 * 12 * 0.185 / 2 = 111 kg CO2
+   * Total: 456.6 kg CO2
    */
   it('should calculate home energy emissions correctly', () => {
     const input: HomeEnergyInput = {
@@ -102,9 +103,9 @@ describe('Carbon Calculation Engine', () => {
       householdSize: 2,
     };
     const result = calculateHomeEnergyEmissions(input);
-    expect(result.electricity).toBeCloseTo(691.2, 1);
-    expect(result.gas).toBeCloseTo(222, 1);
-    expect(result.total).toBeCloseTo(913.2, 1);
+    expect(result.electricity).toBeCloseTo(345.6, 1);
+    expect(result.gas).toBeCloseTo(111, 1);
+    expect(result.total).toBeCloseTo(456.6, 1);
   });
 
   /**

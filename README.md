@@ -1,236 +1,119 @@
-# Personal Carbon Tracker
+# Carbon Footprint Awareness Platform
 
-Calculate your annual greenhouse gas emissions across transportation, home energy, diet, and consumption habits—then get AI-powered suggestions for reducing your impact.
+A browser-based carbon footprint tracker that turns simple lifestyle inputs into annual emissions, practical suggestions, and progress you can revisit later.
 
-## Live Demo
+Live demo: [ADD AFTER DEPLOY]
 
-[TO BE ADDED AFTER DEPLOY]
+## Vertical
 
-## What This App Does
+This app follows an Understand -> Track -> Reduce flow:
 
-Most people don't know their carbon footprint. This app makes it concrete.
-
-**Understand** your baseline by answering simple questions about how you live. **Track** your emissions using peer-reviewed data from UK government sources and climate scientists. **Reduce** by implementing AI-suggested changes and watching your footprint shrink over time.
-
-Unlike generic calculators, this tool provides personalized recommendations based on your specific lifestyle, prioritizing the areas where you can make the biggest difference.
+- Understand: the onboarding modal, tooltips, and validated form make it easier to answer questions about transport, home energy, diet, and consumption.
+- Track: the app calculates annual emissions, saves entries to localStorage, shows a history table and trend chart, and lets users set a personal carbon goal.
+- Reduce: personalized insights suggest specific actions, then users can share a summary or download a PDF report.
 
 ## How It Works
 
-### Step 1: Input Your Lifestyle Data
-
-Fill out a form with five categories of information:
-- **Transport**: Weekly car distance, fuel type (petrol/diesel/hybrid/electric), public transit use, and flight frequency
-- **Home Energy**: Monthly electricity and gas consumption, plus household size (energy per capita)
-- **Diet**: Choose from 5 diet types (vegan → heavy meat eater)
-- **Consumption**: Monthly spending on new goods and weekly landfill waste in kg
-
-The app validates all inputs with sensible ranges (e.g., car distance 0-5000 km/week, household size 1-20 people).
-
-### Step 2: View Your Footprint Breakdown
-
-The calculation engine instantly computes:
-- **Total annual emissions** in tonnes CO₂e (tonnes of CO₂ equivalent)
-- **Breakdown by category** with a visual bar chart showing relative impact
-- **Detailed sub-categories** (e.g., transport splits into car, transit, short flights, long flights)
-- **Status indicator** comparing you to global average (4.7t/year) and sustainable target (2t/year)
-
-### Step 3: Get Personalized Recommendations
-
-The app either:
-- **Uses Google Gemini API** (if configured) to generate contextual suggestions based on your specific emissions profile, or
-- **Falls back to rule-based recommendations** with thresholds per category
-
-Each recommendation shows the potential annual CO₂e savings if you implement it.
-
-### Step 4: Track & Monitor Progress
-
-Save your results to browser storage. View a timeline chart showing your emissions over time as you adopt new habits. Delete outdated entries to reset your baseline.
-
-### Step 5: Share & Export
-
-Download a PDF report or share your footprint via native Web Share API (or copy to clipboard if browser doesn't support it).
-
-## Architecture
-
-```
-┌────────────────────────────────────────────┐
-│         App.tsx (Main React Component)     │
-│  - Form State & Validation                 │
-│  - Section Toggle (Transport/Energy/Diet)  │
-│  - Results Display & Comparison Badges     │
-└────────────────────────────────────────────┘
-                    │
-      ┌─────────────┼─────────────┐
-      │             │             │
-┌─────▼────────┐  ┌▼──────────┐  ┌▼────────────────┐
-│carbonEngine  │  │insights   │  │Utility Modules  │
-│              │  │Engine     │  │                 │
-│ Pure Math:   │  │           │  │- useHistory()   │
-│ transport()  │  │ Gemini    │  │- pdfExport()    │
-│ energy()     │  │ + fallback│  │- shareUtils()   │
-│ diet()       │  │ rules     │  │                 │
-│ goods()      │  │           │  │                 │
-│ total()      │  │           │  │                 │
-└──────────────┘  └───────────┘  └─────────────────┘
-      │                │                 │
-      └────────────────┼─────────────────┘
-                       │
-         ┌─────────────▼──────────────┐
-         │  React Components          │
-         │                            │
-         │ - PersonalizedInsights     │
-         │ - HistorySection           │
-         │ - HistoryDetailModal       │
-         │ - OnboardingModal          │
-         │ - ResultsBreakdown         │
-         └────────────────────────────┘
-                       │
-         ┌─────────────▼──────────────┐
-         │  Browser Storage           │
-         │  (localStorage)            │
-         │  - History entries         │
-         │  - Onboarding flag         │
-         └────────────────────────────┘
-```
-
-### Data Flow
-
-1. User submits form → validation
-2. Transport/Energy/Diet/Goods inputs → passed to carbonEngine
-3. carbonEngine calculates category totals → returns breakdown
-4. App displays results + calls insightsEngine
-5. insightsEngine ranks categories → calls Gemini API OR uses fallback rules
-6. Recommendations rendered in PersonalizedInsights component
-7. User can save to history (useHistory hook saves to localStorage)
-
-## Emission Factor Sources
-
-All values sourced from published scientific data and government conversion factors:
-
-### Transport
-- **Car emissions (DEFRA 2023)**: Petrol 192 g/km, Diesel 168 g/km, Hybrid 104 g/km, Electric 56 g/km
-  - Source: https://www.gov.uk/government/publications/greenhouse-gas-reporting-conversion-factors-2023
-- **Public transit (DEFRA 2023 & EPA)**: Bus 89 g/km, Train 41 g/km per passenger
-- **Flights (ICAO + DEFRA 2023)**: Short-haul 255 g/km, Long-haul 195 g/km
-  - Includes radiative forcing index (~2.7x multiplier for high-altitude effects)
-  - Source: https://www.icao.int/environmental-protection/Pages/default.aspx
-
-### Home Energy
-- **Electricity**: 192 g CO₂/kWh (UK grid 2023)
-- **Natural gas**: 185 g CO₂/kWh (includes extraction & distribution)
-- Source: DEFRA 2023 GHG Conversion Factors
-
-### Diet
-- Based on lifecycle assessment data from Our World in Data & IPCC
-- Vegan: 1.5t/year, Vegetarian: 1.7t, Pescatarian: 1.9t, Medium meat: 2.5t, High meat: 2.9t
-- Source: https://ourworldindata.org/food-choice-vs-eating-local
-
-### Goods & Waste
-- New goods spending: 0.45 kg CO₂/£ (UK average across all product categories)
-- Landfill waste: 0.6 kg CO₂/kg (decomposition emissions)
-- Source: DEFRA 2023 & Waste & Resources Action Programme (WRAP)
-
-## Code Assumptions
-
-- **Energy is shared**: Household energy (electricity/gas) is divided evenly among household members (per capita)
-- **Public transit is UK average**: If users don't specify bus vs train, we use 65 g/km as conservative mix
-- **Flights are direct distances**: Short-haul = 300km avg, Long-haul = 6000km avg per flight
-- **No rebound effects**: We assume reduced spending doesn't redirect to other high-carbon activities
-- **Goods spending = embodied emissions**: We don't distinguish between fast fashion and durable goods; £1 spent = 0.45 kg CO₂
-- **Waste is all landfill**: We assume no recycling/composting happens; all waste goes to landfill
-- **Grid carbon intensity is static**: Uses 2023 UK grid average; doesn't account for time-of-use variations
+1. `App.tsx` opens with `OnboardingModal` on first visit and renders the lifestyle form in collapsible sections.
+2. User inputs are validated before saving to state; invalid numeric values are rejected and shown inline.
+3. `calculateTotalFootprint()` in `src/lib/carbonEngine.ts` converts weekly and monthly inputs into annual emissions in tonnes CO2e.
+4. `ResultsBreakdown` shows the total, category bars, target comparisons, and a detailed emissions table.
+5. `PersonalizedInsights` loads `generatePersonalizedInsights()` from `src/lib/insightsEngine.ts`. If `VITE_GEMINI_API_KEY` is set, the app calls Google GenAI; otherwise it uses rule-based recommendations.
+6. `GoalSetting` stores a target in localStorage and `GoalProgress` compares the latest saved result to that target.
+7. `HistorySection` stores past results in localStorage, renders a trend chart, and opens `HistoryDetailModal` for saved entries.
+8. `shareUtils` and `pdfExport` let users share or export their footprint.
 
 ## Tech Stack
 
 | Package | Version | Purpose |
-|---------|---------|---------|
-| React | ^19.2.6 | UI framework |
-| TypeScript | ~6.0.2 | Type safety |
-| Vite | ^8.0.12 | Build tool & dev server |
-| Recharts | ^3.8.1 | Charts & visualizations (history timeline) |
+| --- | --- | --- |
+| React / React DOM | 19.2.6 | UI rendering |
+| TypeScript | ~6.0.2 | Static typing |
+| Vite | ^8.0.12 | Dev server and build tool |
+| Recharts | ^3.8.1 | Result chart and trend chart |
 | jsPDF | ^4.2.1 | PDF export |
-| @google/genai | ^2.8.0 | Gemini API client (recommendations) |
-| Vitest | ^4.1.8 | Test runner (42 tests) |
-| React Testing Library | ^16.3.2 | Component testing |
+| @google/genai | ^2.8.0 | Optional Gemini-powered recommendations |
+| Vitest | ^4.1.8 | Test runner |
+| Testing Library packages | various | Component and interaction tests |
+| jsdom | ^29.1.1 | Browser-like test environment |
 
-## How to Run Locally
+## Emission Factor Sources
 
-### Prerequisites
-- Node.js 18+ (includes npm)
-- A Gemini API key (optional, for AI recommendations)
+The emission engine comments cite these sources:
 
-### Installation & Development
+- DEFRA 2023 for car, transit, home energy, and goods and waste factors.
+- ICAO for flight modeling, combined with DEFRA 2023.
+- Our World in Data and IPCC for diet-based annual emissions.
+- EPA, mentioned alongside DEFRA for transit context.
+- WRAP, mentioned alongside DEFRA for goods and waste context.
+
+## Assumptions In The Code
+
+- Emissions are calculated as annual totals and displayed in tonnes CO2e.
+- Household size is validated in the UI, and home energy emissions are divided per person.
+- The transit UI uses the average transit factor, not separate bus/train factors.
+- Short-haul flights use a fixed average distance of 300 km, and long-haul flights use 6000 km.
+- Diet uses fixed annual totals by diet type instead of meal-level tracking.
+- Goods spending is treated as a linear emissions proxy, and landfill waste is assumed to go to landfill.
+- History, goals, and completed actions live in browser localStorage only.
+- AI recommendations are optional; if the Gemini key is missing or invalid, the app falls back to built-in rules.
+- Share and PDF features depend on browser support for Web Share, clipboard access, and PDF generation.
+
+## How To Run Locally
 
 ```bash
-# Clone the repository
-git clone <repo-url>
-cd carbon-footprint
-
-# Install dependencies
 npm install
-
-# Start dev server
 npm run dev
-
-# Opens at http://localhost:5173
 ```
 
-### Build for Production
+Optional preview:
 
 ```bash
 npm run build
-
-# Output goes to ./dist
-# Preview the build locally:
 npm run preview
 ```
 
-### Linting
-
-```bash
-npm run lint
-```
-
-## How to Run Tests
+## How To Run Tests
 
 ```bash
 npm test
-
-# Runs all test files in watch mode
-# Current test coverage: 5 test files, 42 passing tests
-
-# Test files:
-# - src/lib/carbonEngine.test.ts (calculation accuracy)
-# - src/lib/insightsEngine.test.ts (recommendation generation & fallback)
-# - src/hooks/useHistory.test.ts (localStorage persistence)
-# - src/components/OnboardingModal.test.tsx (keyboard accessibility)
-# - src/lib/shareUtils.test.ts (share/clipboard functionality)
 ```
 
-## Environment Configuration
+- `npm test` runs Vitest in watch mode.
+- `npm test -- --run` runs the suite once, which is the command used for verification here.
+- Current suite: 14 test files, 81 tests.
+
+## Environment Setup
 
 Create a `.env` file in the project root:
 
 ```env
-# Gemini API Configuration
-# Get your API key from https://aistudio.google.com/app/apikeys
-# Supports both API key format (AIzaSy...) and OAuth token format (AQ.)
 VITE_GEMINI_API_KEY=your_gemini_api_key_here
 ```
 
-**Note**: If `VITE_GEMINI_API_KEY` is not set or invalid, the app falls back to rule-based recommendations automatically.
+If the key is missing or invalid, the app still works and uses rule-based recommendations.
 
 ## Rubric Alignment
 
-| Criteria | Implementation | Status |
-|----------|---|---|
-| **Understand** | Input form collects data across 4 major lifestyle categories (transport, energy, diet, goods). Includes 12 specific input fields with contextual tooltips. Responsive form validation with inline error messages. | ✓ Complete |
-| **Track** | All calculations use peer-reviewed emission factors from DEFRA 2023, EPA, IPCC. Results stored in browser localStorage with timestamp. History component displays timeline chart and entry table. Up to 42 test cases verify calculation accuracy. | ✓ Complete |
-| **Reduce** | AI-powered recommendations from Google Gemini API, ranked by emission category impact. Fallback to 12 rule-based suggestions if API unavailable. Each recommendation includes potential CO₂ savings. "I'll try this" checkbox to track commitment. | ✓ Complete |
-| **Scientific Accuracy** | All emission factors cited with primary sources (gov.uk, ICAO, IPCC, Our World in Data). Includes radiative forcing index for flights, lifecycle analysis for diet, extraction costs for energy. Documented assumptions in code comments. | ✓ Complete |
-| **User Experience** | Onboarding modal on first visit. Collapsible form sections. Real-time calculation updates. Visual feedback (status badges: green/amber/red). PDF export & social sharing built-in. Keyboard accessible (tab trapping in modals, ARIA labels). | ✓ Complete |
-| **Code Quality** | Pure calculation layer (no UI dependencies). 42 passing tests across 5 test suites. ESLint configured. TypeScript strict mode. Modular React components. Fallback architectures for external API failures. | ✓ Complete |
+| Criterion | Actual implementation | Status |
+| --- | --- | --- |
+| Understand | Onboarding, tooltips, validated lifestyle form, clear result summaries | Complete |
+| Track | localStorage history, goal progress, trend chart, saved-entry details | Complete |
+| Reduce | Personalized tips, goal setting, PDF export, sharing flow | Complete |
+| Accuracy | Pure calculation engine with cited emission sources and explicit assumptions | Complete |
+| Accessibility | Skip link, scoped table headers, dialog semantics, hidden legend, keyboard-friendly modals | Complete |
+| Reliability | NaN guards, storage parsing guards, browser API guards, lint/test/build passing | Complete |
 
----
+## Verification
 
-**Questions?** Check the code comments in `src/lib/carbonEngine.ts` for detailed emission factor citations and assumptions.
+Last verified with:
+
+```bash
+npm run lint
+npm test -- --run
+npm run build
+```
+
+## License
+
+[MIT](LICENSE) — created for PromptWars Virtual Challenge 3.
