@@ -39,7 +39,7 @@
 }
 
 .stat .value.improving {
-  color: #16a34a;
+  color: #14532d;
 }
 
 .stat .value.stable {
@@ -77,14 +77,14 @@
   margin: 12px 0 0 0;
   padding: 8px 12px;
   background-color: rgba(34, 197, 94, 0.1);
-  border-left: 3px solid #16a34a;
+  border-left: 3px solid #14532d;
   border-radius: 4px;
   font-size: 13px;
   color: var(--text);
 }
 
 .progress-change strong {
-  color: #16a34a;
+  color: #14532d;
   font-weight: 600;
 }
 

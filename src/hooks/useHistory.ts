@@ -1,4 +1,5 @@
 const STORAGE_KEY = 'carbon_footprint_history'
+export const HISTORY_UPDATED_EVENT = 'carbon-history-updated'
 
 export interface HistoryEntry {
   date: string
@@ -46,55 +47,89 @@ function isValidHistoryEntryInput(entry: Omit<HistoryEntry, 'date'>): boolean {
   )
 }
 
-export function useHistory() {
-  const getHistory = (): HistoryEntry[] => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY)
-      if (!stored) return []
-      const parsed: unknown = JSON.parse(stored)
-      if (!Array.isArray(parsed)) return []
-      return parsed
-        .filter(isValidHistoryEntry)
-        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-    } catch {
+/**
+ * Sort history entries from newest to oldest.
+ */
+function sortHistoryEntries(entries: HistoryEntry[]): HistoryEntry[] {
+  return [...entries].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+}
+
+function notifyHistoryUpdated(): void {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  window.dispatchEvent(new Event(HISTORY_UPDATED_EVENT))
+}
+
+/**
+ * Read and validate history entries from localStorage.
+ */
+export function readHistoryEntries(): HistoryEntry[] {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY)
+    if (!stored) {
       return []
     }
-  }
 
-  const addEntry = (entry: Omit<HistoryEntry, 'date'>): { success: boolean; error?: string } => {
-    try {
-      if (!isValidHistoryEntryInput(entry)) {
-        return { success: false, error: 'Invalid entry data' }
-      }
-      const history = getHistory()
-      const newEntry: HistoryEntry = {
+    const parsed: unknown = JSON.parse(stored)
+    if (!Array.isArray(parsed)) {
+      return []
+    }
+
+    return sortHistoryEntries(parsed.filter(isValidHistoryEntry))
+  } catch {
+    return []
+  }
+}
+
+/**
+ * Persist a validated history entry to localStorage.
+ */
+export function addHistoryEntry(entry: Omit<HistoryEntry, 'date'>): { success: boolean; error?: string } {
+  try {
+    if (!isValidHistoryEntryInput(entry)) {
+      return { success: false, error: 'Invalid entry data' }
+    }
+
+    const nextHistory = sortHistoryEntries([
+      ...readHistoryEntries(),
+      {
         ...entry,
         date: new Date().toISOString(),
-      }
-      history.push(newEntry)
-      const sorted = history.sort((a, b) =>
-        new Date(b.date).getTime() - new Date(a.date).getTime()
-      )
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(sorted))
-      return { success: true }
-    } catch (error) {
-      if (error instanceof DOMException && error.code === 22) {
-        return { success: false, error: 'Storage quota exceeded' }
-      }
-      return { success: false, error: 'Failed to save entry' }
-    }
-  }
+      },
+    ])
 
-  const deleteEntry = (date: string): boolean => {
-    try {
-      const history = getHistory()
-      const filtered = history.filter((entry) => entry.date !== date)
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered))
-      return true
-    } catch {
-      return false
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(nextHistory))
+    notifyHistoryUpdated()
+    return { success: true }
+  } catch (error) {
+    if (error instanceof DOMException && error.code === 22) {
+      return { success: false, error: 'Storage quota exceeded' }
     }
-  }
 
-  return { getHistory, addEntry, deleteEntry }
+    return { success: false, error: 'Failed to save entry' }
+  }
+}
+
+/**
+ * Remove a history entry from localStorage by timestamp.
+ */
+export function deleteHistoryEntry(date: string): boolean {
+  try {
+    const filtered = readHistoryEntries().filter((entry) => entry.date !== date)
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered))
+    notifyHistoryUpdated()
+    return true
+  } catch {
+    return false
+  }
+}
+
+export function useHistory() {
+  return {
+    getHistory: readHistoryEntries,
+    addEntry: addHistoryEntry,
+    deleteEntry: deleteHistoryEntry,
+  }
 }

@@ -58,4 +58,15 @@ describe('useCompletedActions', () => {
     toggleAction('action1')
     expect(getCompletedActions()).toContain('action1')
   })
+
+  it('sanitizes stored actions before returning them', () => {
+    localStorage.setItem(
+      'carbon_completed_actions',
+      JSON.stringify(['action-one', null, 42, ' action-two ', 'action-one']),
+    )
+
+    const { getCompletedActions } = useCompletedActions()
+
+    expect(getCompletedActions()).toEqual(['action-one', 'action-two'])
+  })
 })

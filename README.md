@@ -2,7 +2,7 @@
 
 A browser-based carbon footprint tracker that turns simple lifestyle inputs into annual emissions, practical suggestions, and progress you can revisit later.
 
-Live demo: [ADD AFTER DEPLOY]
+Live demo: https://carbon-footprint-ivory.vercel.app/
 
 ## Vertical
 
@@ -79,9 +79,8 @@ npm run preview
 npm test
 ```
 
-- `npm test` runs Vitest in watch mode.
-- `npm test -- --run` runs the suite once, which is the command used for verification here.
-- Current suite: 14 test files, 81 tests.
+- `npm test` runs Vitest.
+- Current suite: 21 test files, 133 tests.
 
 ## Environment Setup
 
@@ -110,10 +109,10 @@ Last verified with:
 
 ```bash
 npm run lint
-npm test -- --run
+npm test
 npm run build
 ```
 
 ## License
 
-[MIT](LICENSE) — created for PromptWars Virtual Challenge 3.
+[MIT](LICENSE) - created for PromptWars Virtual Challenge 3.

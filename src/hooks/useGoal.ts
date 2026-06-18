@@ -1,4 +1,5 @@
 const GOAL_STORAGE_KEY = 'carbon_footprint_goal'
+export const GOAL_UPDATED_EVENT = 'carbon-goal-updated'
 
 export interface CarbonGoal {
   target: number
@@ -23,56 +24,86 @@ function isValidGoalRecord(value: unknown): value is CarbonGoal {
   )
 }
 
+function notifyGoalUpdated(): void {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  window.dispatchEvent(new Event(GOAL_UPDATED_EVENT))
+}
+
+/**
+ * Read the stored goal record from localStorage.
+ */
+export function readGoalRecord(): CarbonGoal | null {
+  try {
+    const stored = localStorage.getItem(GOAL_STORAGE_KEY)
+    if (!stored) {
+      return null
+    }
+
+    const parsed: unknown = JSON.parse(stored)
+    return isValidGoalRecord(parsed) ? parsed : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Persist a validated goal record to localStorage.
+ */
+export function saveGoalRecord(
+  target: number,
+  targetYear: number,
+): { success: boolean; error?: string } {
+  try {
+    if (
+      !Number.isFinite(target) ||
+      !Number.isFinite(targetYear) ||
+      !Number.isInteger(targetYear)
+    ) {
+      return { success: false, error: 'Target and year must be valid numbers' }
+    }
+
+    if (target <= 0 || target > 100) {
+      return { success: false, error: 'Target must be between 1-100 tonnes' }
+    }
+
+    if (targetYear < new Date().getFullYear()) {
+      return { success: false, error: 'Target year must be current year or later' }
+    }
+
+    const goal: CarbonGoal = {
+      target,
+      targetYear,
+      createdAt: new Date().toISOString(),
+    }
+
+    localStorage.setItem(GOAL_STORAGE_KEY, JSON.stringify(goal))
+    notifyGoalUpdated()
+    return { success: true }
+  } catch {
+    return { success: false, error: 'Failed to save goal' }
+  }
+}
+
+/**
+ * Remove the stored goal record from localStorage.
+ */
+export function deleteGoalRecord(): boolean {
+  try {
+    localStorage.removeItem(GOAL_STORAGE_KEY)
+    notifyGoalUpdated()
+    return true
+  } catch {
+    return false
+  }
+}
+
 export function useGoal() {
-  const getGoal = (): CarbonGoal | null => {
-    try {
-      const stored = localStorage.getItem(GOAL_STORAGE_KEY)
-      if (!stored) return null
-      const parsed: unknown = JSON.parse(stored)
-      if (isValidGoalRecord(parsed)) {
-        return parsed
-      }
-      return null
-    } catch {
-      return null
-    }
+  return {
+    getGoal: readGoalRecord,
+    setGoal: saveGoalRecord,
+    deleteGoal: deleteGoalRecord,
   }
-
-  const setGoal = (target: number, targetYear: number): { success: boolean; error?: string } => {
-    try {
-      if (
-        !Number.isFinite(target) ||
-        !Number.isFinite(targetYear) ||
-        !Number.isInteger(targetYear)
-      ) {
-        return { success: false, error: 'Target and year must be valid numbers' }
-      }
-      if (target <= 0 || target > 100) {
-        return { success: false, error: 'Target must be between 1-100 tonnes' }
-      }
-      if (targetYear < new Date().getFullYear()) {
-        return { success: false, error: 'Target year must be current year or later' }
-      }
-      const goal: CarbonGoal = {
-        target,
-        targetYear,
-        createdAt: new Date().toISOString(),
-      }
-      localStorage.setItem(GOAL_STORAGE_KEY, JSON.stringify(goal))
-      return { success: true }
-    } catch {
-      return { success: false, error: 'Failed to save goal' }
-    }
-  }
-
-  const deleteGoal = (): boolean => {
-    try {
-      localStorage.removeItem(GOAL_STORAGE_KEY)
-      return true
-    } catch {
-      return false
-    }
-  }
-
-  return { getGoal, setGoal, deleteGoal }
 }

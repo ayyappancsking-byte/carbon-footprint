@@ -15,106 +15,238 @@ export interface CategoryBreakdown {
   total: number
 }
 
+interface RankedCategory {
+  name: Recommendation['category']
+  value: number
+}
+
+interface ApiRecommendationPayload {
+  category: string
+  action: string
+  potentialSavingKg: number
+}
+
+interface FallbackRecommendationConfig {
+  threshold: number
+  high: Omit<Recommendation, 'category'>
+  low: Omit<Recommendation, 'category'>
+}
+
 let lastAPICallTime = 0
 const API_CALL_COOLDOWN_MS = 4000
+const MAX_RECOMMENDATIONS = 4
+const FALLBACK_RECOMMENDATIONS: Record<Recommendation['category'], FallbackRecommendationConfig> = {
+  Transport: {
+    threshold: 2,
+    high: {
+      action: 'Switch one car trip per day to public transit or cycling',
+      potentialSavingKg: 1500,
+    },
+    low: {
+      action: 'Carpool 2-3 times per week to reduce emissions',
+      potentialSavingKg: 800,
+    },
+  },
+  'Home Energy': {
+    threshold: 1.5,
+    high: {
+      action: 'Switch to a renewable energy provider or install solar panels',
+      potentialSavingKg: 2000,
+    },
+    low: {
+      action: 'Upgrade to LED lighting and improve insulation',
+      potentialSavingKg: 600,
+    },
+  },
+  Diet: {
+    threshold: 2.5,
+    high: {
+      action: 'Replace red meat with chicken or plant-based alternatives for 3 meals each week',
+      potentialSavingKg: 800,
+    },
+    low: {
+      action: 'Try Meatless Mondays once per week',
+      potentialSavingKg: 250,
+    },
+  },
+  'Goods & Waste': {
+    threshold: 0.8,
+    high: {
+      action: 'Buy secondhand items instead of new, aiming for half of your purchases',
+      potentialSavingKg: 900,
+    },
+    low: {
+      action: 'Start composting and reduce landfill waste by 25%',
+      potentialSavingKg: 200,
+    },
+  },
+}
 
-function rankCategories(breakdown: CategoryBreakdown): Array<{
-  name: 'Transport' | 'Home Energy' | 'Diet' | 'Goods & Waste'
-  value: number
-}> {
-  const categories: Array<{
-    name: 'Transport' | 'Home Energy' | 'Diet' | 'Goods & Waste'
-    value: number
-  }> = [
+/**
+ * Rank the carbon footprint categories from highest to lowest.
+ */
+function rankCategories(breakdown: CategoryBreakdown): RankedCategory[] {
+  const categories: RankedCategory[] = [
     { name: 'Transport', value: breakdown.transport },
     { name: 'Home Energy', value: breakdown.homeEnergy },
     { name: 'Diet', value: breakdown.diet },
     { name: 'Goods & Waste', value: breakdown.goodsAndWaste },
   ]
+
   return categories.sort((a, b) => b.value - a.value)
 }
 
+/**
+ * Build a fallback recommendation for a single category.
+ */
+function buildFallbackRecommendation(category: RankedCategory): Recommendation | null {
+  if (category.value <= 0) {
+    return null
+  }
+
+  const config = FALLBACK_RECOMMENDATIONS[category.name]
+  const recommendation = category.value > config.threshold ? config.high : config.low
+
+  return {
+    category: category.name,
+    action: recommendation.action,
+    potentialSavingKg: recommendation.potentialSavingKg,
+  }
+}
+
+/**
+ * Generate rule-based recommendations when the AI service is unavailable.
+ */
 function generateFallbackRecommendations(breakdown: CategoryBreakdown): Recommendation[] {
-  const ranked = rankCategories(breakdown)
+  const ranked = rankCategories(breakdown).slice(0, MAX_RECOMMENDATIONS)
   const recommendations: Recommendation[] = []
 
-  for (let i = 0; i < Math.min(3, ranked.length); i++) {
-    const category = ranked[i]
-
-    if (category.name === 'Transport' && category.value > 0) {
-      if (category.value > 2) {
-        recommendations.push({
-          category: 'Transport',
-          action: 'Switch one car trip per day to public transit or cycling',
-          potentialSavingKg: 1500,
-        })
-      } else {
-        recommendations.push({
-          category: 'Transport',
-          action: 'Carpool 2-3 times per week to reduce emissions',
-          potentialSavingKg: 800,
-        })
-      }
-    }
-
-    if (category.name === 'Home Energy' && category.value > 0) {
-      if (category.value > 1.5) {
-        recommendations.push({
-          category: 'Home Energy',
-          action: 'Switch to renewable energy provider or install solar panels',
-          potentialSavingKg: 2000,
-        })
-      } else {
-        recommendations.push({
-          category: 'Home Energy',
-          action: 'Upgrade to LED lighting and improve insulation',
-          potentialSavingKg: 600,
-        })
-      }
-    }
-
-    if (category.name === 'Diet' && category.value > 0) {
-      if (category.value > 2.5) {
-        recommendations.push({
-          category: 'Diet',
-          action: 'Replace red meat with chicken or plant-based alternatives 3 meals/week',
-          potentialSavingKg: 800,
-        })
-      } else {
-        recommendations.push({
-          category: 'Diet',
-          action: 'Try "Meatless Mondays" once per week',
-          potentialSavingKg: 250,
-        })
-      }
-    }
-
-    if (category.name === 'Goods & Waste' && category.value > 0) {
-      if (category.value > 0.8) {
-        recommendations.push({
-          category: 'Goods & Waste',
-          action: 'Buy secondhand items instead of new, aim for 50% of purchases',
-          potentialSavingKg: 900,
-        })
-      } else {
-        recommendations.push({
-          category: 'Goods & Waste',
-          action: 'Start composting and reduce landfill waste by 25%',
-          potentialSavingKg: 200,
-        })
-      }
+  for (const category of ranked) {
+    const recommendation = buildFallbackRecommendation(category)
+    if (recommendation) {
+      recommendations.push(recommendation)
     }
   }
 
-  return recommendations.slice(0, 4)
+  return recommendations
 }
 
+/**
+ * Build the prompt used for Gemini recommendation generation.
+ */
+function buildGeminiPrompt(breakdown: CategoryBreakdown): string {
+  return `Given this carbon footprint breakdown in kg CO2e per year:
+Transport: ${(breakdown.transport * 1000).toFixed(0)}
+Home Energy: ${(breakdown.homeEnergy * 1000).toFixed(0)}
+Diet: ${(breakdown.diet * 1000).toFixed(0)}
+Goods & Waste: ${(breakdown.goodsAndWaste * 1000).toFixed(0)}
+
+Give 2-4 personalized recommendations targeting the biggest categories first.
+Return ONLY a JSON array:
+[{"category":"diet","action":"...","potentialSavingKg":500}]`
+}
+
+/**
+ * Extract the first JSON array found in a Gemini response.
+ */
+function extractJsonArray(content: string): string | null {
+  const jsonMatch = content.match(/\[[\s\S]*\]/)
+  return jsonMatch?.[0] ?? null
+}
+
+/**
+ * Convert a free-form category string into the supported recommendation categories.
+ */
+function normalizeRecommendationCategory(value: string): Recommendation['category'] | null {
+  const normalized = value.trim().toLowerCase()
+
+  switch (normalized) {
+    case 'transport':
+      return 'Transport'
+    case 'home energy':
+    case 'home_energy':
+    case 'home-energy':
+      return 'Home Energy'
+    case 'diet':
+      return 'Diet'
+    case 'goods & waste':
+    case 'goods and waste':
+    case 'goods_waste':
+    case 'goods-waste':
+      return 'Goods & Waste'
+    default:
+      return null
+  }
+}
+
+/**
+ * Check whether a parsed JSON item looks like a recommendation payload.
+ */
+function isRecommendationPayload(value: unknown): value is ApiRecommendationPayload {
+  if (typeof value !== 'object' || value === null) {
+    return false
+  }
+
+  const candidate = value as Partial<ApiRecommendationPayload>
+
+  return (
+    typeof candidate.category === 'string' &&
+    typeof candidate.action === 'string' &&
+    typeof candidate.potentialSavingKg === 'number' &&
+    Number.isFinite(candidate.potentialSavingKg)
+  )
+}
+
+/**
+ * Convert an AI payload into a safe Recommendation object.
+ */
+function normalizeRecommendationPayload(
+  payload: ApiRecommendationPayload,
+): Recommendation | null {
+  const category = normalizeRecommendationCategory(payload.category)
+  const action = payload.action.trim()
+
+  if (!category || action.length === 0) {
+    return null
+  }
+
+  return {
+    category,
+    action,
+    potentialSavingKg: payload.potentialSavingKg > 0 ? payload.potentialSavingKg : 0,
+  }
+}
+
+/**
+ * Parse and validate Gemini output into the Recommendation model.
+ */
+function parseApiRecommendations(content: string): Recommendation[] | null {
+  const jsonArray = extractJsonArray(content)
+  if (!jsonArray) {
+    return null
+  }
+
+  try {
+    const parsed = JSON.parse(jsonArray) as unknown[]
+    const recommendations = parsed
+      .filter(isRecommendationPayload)
+      .map(normalizeRecommendationPayload)
+      .filter((item): item is Recommendation => item !== null)
+
+    return recommendations.slice(0, MAX_RECOMMENDATIONS)
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Call Gemini for personalized recommendations, falling back to null on any recoverable failure.
+ */
 async function callGeminiAPI(
   breakdown: CategoryBreakdown,
   apiKey: string,
 ): Promise<Recommendation[] | null> {
   const now = Date.now()
-
   if (lastAPICallTime > 0 && now - lastAPICallTime < API_CALL_COOLDOWN_MS) {
     return null
   }
@@ -123,83 +255,41 @@ async function callGeminiAPI(
 
   try {
     const ai = new GoogleGenAI({ apiKey })
-
-    const prompt = `Given this carbon footprint breakdown in kg CO2e per year:
-    Transport: ${(breakdown.transport * 1000).toFixed(0)}
-    Home Energy: ${(breakdown.homeEnergy * 1000).toFixed(0)}
-    Diet: ${(breakdown.diet * 1000).toFixed(0)}
-    Goods & Waste: ${(breakdown.goodsAndWaste * 1000).toFixed(0)}
-
-    Give 2-4 personalized recommendations targeting the biggest
-    categories first. Return ONLY a JSON array:
-    [{"category": "diet", "action": "...", "potentialSavingKg": 500}]`
-
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
-      contents: prompt,
+      contents: buildGeminiPrompt(breakdown),
     })
 
-    const content = response.text
-
-    if (!content) return null
-
-    const jsonMatch = content.match(/\[[\s\S]*\]/)
-    if (!jsonMatch) return null
-
-    let parsed: unknown
-    try {
-      parsed = JSON.parse(jsonMatch[0])
-    } catch {
-      return null
-    }
-
-    if (!Array.isArray(parsed)) return null
-
-    if (!parsed.every(item =>
-      typeof item.category === 'string' &&
-      typeof item.action === 'string' &&
-      typeof item.potentialSavingKg === 'number'
-    )) {
-      return null
-    }
-
-    return parsed
-      .filter((item) =>
-        item.category &&
-        item.action &&
-        typeof item.potentialSavingKg === 'number'
-      )
-      .map((item) => ({
-        ...item,
-        category: (
-          item.category.charAt(0).toUpperCase() + item.category.slice(1)
-        ) as Recommendation['category'],
-      }))
-      .slice(0, 4)
-
-  } catch (error) {
-    const err = error as { status?: number; message?: string }
-    const status = err?.status
-    if (status === 429 || status === 503) {
-      return null
-    }
+    const recommendations = parseApiRecommendations(response.text ?? '')
+    return recommendations && recommendations.length > 0 ? recommendations : null
+  } catch {
     return null
   }
 }
 
-export async function generatePersonalizedInsights(
-  breakdown: CarbonFootprintBreakdown,
-): Promise<{ recommendations: Recommendation[]; usedAI: boolean }> {
-  const categoryBreakdown: CategoryBreakdown = {
+/**
+ * Convert a footprint breakdown into the recommendation engine input format.
+ */
+function toCategoryBreakdown(breakdown: CarbonFootprintBreakdown): CategoryBreakdown {
+  return {
     transport: breakdown.transport,
     homeEnergy: breakdown.homeEnergy,
     diet: breakdown.diet,
     goodsAndWaste: breakdown.goodsAndWaste,
     total: breakdown.total,
   }
+}
 
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY
+/**
+ * Generate personalized insights using Gemini when available, otherwise use the fallback engine.
+ */
+export async function generatePersonalizedInsights(
+  breakdown: CarbonFootprintBreakdown,
+  apiKeyOverride?: string,
+): Promise<{ recommendations: Recommendation[]; usedAI: boolean }> {
+  const categoryBreakdown = toCategoryBreakdown(breakdown)
 
+  const apiKey = apiKeyOverride ?? import.meta.env.VITE_GEMINI_API_KEY
   if (apiKey && apiKey !== 'your_gemini_api_key_here') {
     const aiRecommendations = await callGeminiAPI(categoryBreakdown, apiKey)
     if (aiRecommendations && aiRecommendations.length > 0) {
@@ -207,6 +297,8 @@ export async function generatePersonalizedInsights(
     }
   }
 
-  const fallbackRecommendations = generateFallbackRecommendations(categoryBreakdown)
-  return { recommendations: fallbackRecommendations, usedAI: false }
+  return {
+    recommendations: generateFallbackRecommendations(categoryBreakdown),
+    usedAI: false,
+  }
 }

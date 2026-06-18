@@ -19,7 +19,11 @@ interface HistoryChartProps {
 
 export default function HistoryChart({ data }: HistoryChartProps) {
   return (
-    <div className="chart-container">
+    <figure
+      className="chart-container"
+      role="img"
+      aria-label="Carbon footprint history line chart showing total emissions over time"
+    >
       <ResponsiveContainer width="100%" height={300}>
         <LineChart data={data}>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
@@ -47,6 +51,6 @@ export default function HistoryChart({ data }: HistoryChartProps) {
           />
         </LineChart>
       </ResponsiveContainer>
-    </div>
+    </figure>
   )
 }

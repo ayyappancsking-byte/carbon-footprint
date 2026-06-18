@@ -1,13 +1,15 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { useGoal } from './useGoal'
 
 describe('useGoal', () => {
   beforeEach(() => {
     localStorage.clear()
+    vi.restoreAllMocks()
   })
 
   afterEach(() => {
     localStorage.clear()
+    vi.restoreAllMocks()
   })
 
   it('rejects NaN target values', () => {
@@ -42,5 +44,33 @@ describe('useGoal', () => {
     const { getGoal } = useGoal()
 
     expect(getGoal()).toBeNull()
+  })
+
+  it('returns null when stored goal data is not an object', () => {
+    localStorage.setItem('carbon_footprint_goal', JSON.stringify(123))
+
+    const { getGoal } = useGoal()
+
+    expect(getGoal()).toBeNull()
+  })
+
+  it('returns null when reading the stored goal fails', () => {
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new Error('storage unavailable')
+    })
+
+    const { getGoal } = useGoal()
+
+    expect(getGoal()).toBeNull()
+  })
+
+  it('returns false when deleting the goal fails', () => {
+    vi.spyOn(Storage.prototype, 'removeItem').mockImplementation(() => {
+      throw new Error('storage unavailable')
+    })
+
+    const { deleteGoal } = useGoal()
+
+    expect(deleteGoal()).toBe(false)
   })
 })

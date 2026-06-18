@@ -18,7 +18,7 @@
 .total-number {
   font-size: 48px;
   font-weight: 700;
-  color: #22c55e;
+  color: #14532d;
   line-height: 1;
 
   @media (max-width: 768px) {
@@ -49,19 +49,19 @@
 
 .status-green {
   background: rgba(34, 197, 94, 0.1);
-  color: #16a34a;
+  color: #14532d;
   border: 1px solid rgba(34, 197, 94, 0.3);
 }
 
 .status-amber {
   background: rgba(251, 191, 36, 0.1);
-  color: #b45309;
+  color: #92400e;
   border: 1px solid rgba(251, 191, 36, 0.3);
 }
 
 .status-red {
   background: rgba(239, 68, 68, 0.1);
-  color: #b91c1c;
+  color: #7f1d1d;
   border: 1px solid rgba(239, 68, 68, 0.3);
 }
 
@@ -123,7 +123,7 @@
 .bar-label {
   color: white;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 700;
   white-space: nowrap;
 }
 

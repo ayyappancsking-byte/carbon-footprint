@@ -1,160 +1,231 @@
 /**
- * Carbon Footprint Calculation Engine
- * Pure calculation module with no UI dependencies
- * All emission factors from DEFRA 2023, EPA, IPCC, and Our World in Data
+ * Carbon Footprint Calculation Engine.
+ * Pure calculation module with no UI dependencies.
+ * All emission factors come from DEFRA 2023, EPA, IPCC, and Our World in Data.
  */
 
-import { WEEKS_PER_YEAR, MONTHS_PER_YEAR } from '../constants/thresholds';
+import { MONTHS_PER_YEAR, WEEKS_PER_YEAR } from '../constants/thresholds'
 
 // ============================================================================
 // EMISSION FACTORS (all values in kg CO2e per unit)
 // ============================================================================
 
-// DEFRA 2023: UK Car emissions by fuel type (g CO2/km)
-// https://www.gov.uk/government/publications/greenhouse-gas-reporting-conversion-factors-2023
 const CAR_EMISSIONS_FACTORS = {
-  petrol: 0.192, // kg CO2/km (191.6 g/km)
-  diesel: 0.168, // kg CO2/km (167.8 g/km, includes lifecycle)
-  hybrid: 0.104, // kg CO2/km (103.8 g/km)
-  electric: 0.056, // kg CO2/km (56 g/km, UK average grid 2023)
-  lpg: 0.140, // kg CO2/km
-};
+  petrol: 0.192,
+  diesel: 0.168,
+  hybrid: 0.104,
+  electric: 0.056,
+  lpg: 0.14,
+}
 
-// DEFRA 2023 & EPA: Public transport emissions per km
-// https://www.gov.uk/government/publications/greenhouse-gas-reporting-conversion-factors-2023
 const TRANSIT_EMISSIONS_FACTORS = {
-  bus: 0.089, // kg CO2/km (per passenger, UK average)
-  train: 0.041, // kg CO2/km (per passenger, UK average)
-  average: 0.065, // kg CO2/km (conservative estimate if mix unknown)
-};
+  bus: 0.089,
+  train: 0.041,
+  average: 0.065,
+}
 
-// ICAO & DEFRA 2023: Flight emissions
-// https://www.icao.int/environmental-protection/Pages/default.aspx
-// Includes radiative forcing index (RFI) for high-altitude effects (~2.7x multiplier)
 const FLIGHT_EMISSIONS = {
-  shortFlight: 0.255, // kg CO2e per km (short-haul <900km with RFI)
-  longFlight: 0.195, // kg CO2e per km (long-haul >900km with RFI)
-  averageShortDistance: 300, // km (assumed distance for short flights)
-  averageLongDistance: 6000, // km (assumed distance for long flights)
-};
+  shortFlight: 0.255,
+  longFlight: 0.195,
+  averageShortDistance: 300,
+  averageLongDistance: 6000,
+}
 
-// DEFRA 2023: Home energy emissions
-// https://www.gov.uk/government/publications/greenhouse-gas-reporting-conversion-factors-2023
 const ENERGY_EMISSIONS_FACTORS = {
-  electricity: 0.192, // kg CO2/kWh (UK grid 2023)
-  gas: 0.185, // kg CO2/kWh (includes extraction & distribution)
-};
+  electricity: 0.192,
+  gas: 0.185,
+}
 
-// Our World in Data & IPCC: Dietary emissions (annual per capita)
-// https://ourworldindata.org/food-choice-vs-eating-local
 const DIET_EMISSIONS_ANNUAL = {
-  vegan: 1.5, // tonnes CO2e/year
-  vegetarian: 1.7, // tonnes CO2e/year
-  pescatarian: 1.9, // tonnes CO2e/year
-  meatLow: 2.2, // tonnes CO2e/year (occasional meat)
-  meatMedium: 2.5, // tonnes CO2e/year (regular meat)
-  meatHigh: 2.9, // tonnes CO2e/year (daily meat)
-};
+  vegan: 1.5,
+  vegetarian: 1.7,
+  pescatarian: 1.9,
+  meatLow: 2.2,
+  meatMedium: 2.5,
+  meatHigh: 2.9,
+}
 
-// DEFRA 2023 & Waste & Resources Action Programme (WRAP)
-// https://www.gov.uk/government/publications/greenhouse-gas-reporting-conversion-factors-2023
 const GOODS_EMISSIONS = {
-  spendingEmissions: 0.45, // kg CO2/£ spent on new goods (UK average)
-  landfillEmissions: 0.6, // kg CO2/kg of waste in landfill
-};
+  spendingEmissions: 0.45,
+  landfillEmissions: 0.6,
+}
 
 // ============================================================================
 // TYPES
 // ============================================================================
 
 export interface TransportInput {
-  carKmPerWeek: number;
-  fuelType: keyof typeof CAR_EMISSIONS_FACTORS;
-  transitKmPerWeek: number;
-  transitType?: keyof typeof TRANSIT_EMISSIONS_FACTORS;
-  shortFlightsPerYear: number;
-  longFlightsPerYear: number;
+  carKmPerWeek: number
+  fuelType: keyof typeof CAR_EMISSIONS_FACTORS
+  transitKmPerWeek: number
+  transitType?: keyof typeof TRANSIT_EMISSIONS_FACTORS
+  shortFlightsPerYear: number
+  longFlightsPerYear: number
 }
 
 export interface TransportEmissionsResult {
-  car: number;
-  transit: number;
-  shortFlights: number;
-  longFlights: number;
-  total: number;
+  car: number
+  transit: number
+  shortFlights: number
+  longFlights: number
+  total: number
 }
 
 export interface HomeEnergyInput {
-  electricityKwhPerMonth: number;
-  gasKwhPerMonth: number;
-  householdSize: number;
+  electricityKwhPerMonth: number
+  gasKwhPerMonth: number
+  householdSize: number
 }
 
 export interface HomeEnergyResult {
-  electricity: number;
-  gas: number;
-  total: number;
+  electricity: number
+  gas: number
+  total: number
 }
 
-export type DietType = keyof typeof DIET_EMISSIONS_ANNUAL;
+export type DietType = keyof typeof DIET_EMISSIONS_ANNUAL
 
 export interface GoodsWasteInput {
-  goodsSpendingPerMonth: number;
-  landfillKgPerWeek: number;
+  goodsSpendingPerMonth: number
+  landfillKgPerWeek: number
 }
 
 export interface GoodsWasteResult {
-  goods: number;
-  waste: number;
-  total: number;
+  goods: number
+  waste: number
+  total: number
 }
 
 export interface CarbonFootprintBreakdown {
-  transport: number;
-  homeEnergy: number;
-  diet: number;
-  goodsAndWaste: number;
-  total: number;
+  transport: number
+  homeEnergy: number
+  diet: number
+  goodsAndWaste: number
+  total: number
   breakdown: {
     transportDetail: {
-      car: number;
-      transit: number;
-      flights: number;
-    };
+      car: number
+      transit: number
+      flights: number
+    }
     homeEnergyDetail: {
-      electricity: number;
-      gas: number;
-    };
-  };
+      electricity: number
+      gas: number
+    }
+  }
 }
 
-// ============================================================================
-// CALCULATION FUNCTIONS
-// ============================================================================
+/**
+ * Normalise a numeric input so invalid, negative, and infinite values become zero.
+ */
+function normalizeNonNegativeNumber(value: number): number {
+  return Number.isFinite(value) && value > 0 ? value : 0
+}
 
 /**
- * Calculate annual CO2e emissions from transport
- * All inputs are weekly; multiplied by 52 weeks for annual calculation
+ * Convert a kilogram total to tonnes.
+ */
+function convertKilogramsToTonnes(value: number): number {
+  return value / 1000
+}
+
+/**
+ * Convert tonnes to kilograms.
+ */
+function convertTonnesToKilograms(value: number): number {
+  return value * 1000
+}
+
+/**
+ * Look up a factor and fall back to a safe default if the key is missing.
+ */
+function getEmissionFactor<T extends Record<string, number>>(
+  factors: T,
+  key: keyof T,
+  fallbackKey: keyof T,
+): number {
+  return factors[key] ?? factors[fallbackKey]
+}
+
+/**
+ * Calculate kilograms of CO2e from a weekly distance input.
+ */
+function calculateWeeklyDistanceEmissions(distancePerWeek: number, emissionFactor: number): number {
+  return normalizeNonNegativeNumber(distancePerWeek) * WEEKS_PER_YEAR * emissionFactor
+}
+
+/**
+ * Calculate kilograms of CO2e from an annual trips input.
+ */
+function calculateAnnualTripEmissions(
+  tripsPerYear: number,
+  averageDistanceKm: number,
+  emissionFactor: number,
+): number {
+  return normalizeNonNegativeNumber(tripsPerYear) * averageDistanceKm * emissionFactor
+}
+
+/**
+ * Convert kilogram-level transport results into tonne-level breakdown values.
+ */
+function buildTonnesBreakdown(result: {
+  transport: TransportEmissionsResult
+  homeEnergy: HomeEnergyResult
+  dietKg: number
+  goodsWaste: GoodsWasteResult
+}): CarbonFootprintBreakdown {
+  const totalKg =
+    result.transport.total +
+    result.homeEnergy.total +
+    result.dietKg +
+    result.goodsWaste.total
+
+  return {
+    transport: convertKilogramsToTonnes(result.transport.total),
+    homeEnergy: convertKilogramsToTonnes(result.homeEnergy.total),
+    diet: convertKilogramsToTonnes(result.dietKg),
+    goodsAndWaste: convertKilogramsToTonnes(result.goodsWaste.total),
+    total: convertKilogramsToTonnes(totalKg),
+    breakdown: {
+      transportDetail: {
+        car: convertKilogramsToTonnes(result.transport.car),
+        transit: convertKilogramsToTonnes(result.transport.transit),
+        flights: convertKilogramsToTonnes(
+          result.transport.shortFlights + result.transport.longFlights,
+        ),
+      },
+      homeEnergyDetail: {
+        electricity: convertKilogramsToTonnes(result.homeEnergy.electricity),
+        gas: convertKilogramsToTonnes(result.homeEnergy.gas),
+      },
+    },
+  }
+}
+
+/**
+ * Calculate annual CO2e emissions from transport.
+ * Weekly inputs are multiplied by 52, while flights are already annual counts.
  */
 export function calculateTransportEmissions(input: TransportInput): TransportEmissionsResult {
-  // Car emissions: weekly km * 52 weeks * emission factor
-  const carEmissions =
-    input.carKmPerWeek * WEEKS_PER_YEAR * CAR_EMISSIONS_FACTORS[input.fuelType];
-
-  // Transit emissions: weekly km * 52 weeks * emission factor
-  const transitType = input.transitType || 'average';
-  const transitEmissions =
-    input.transitKmPerWeek * WEEKS_PER_YEAR * TRANSIT_EMISSIONS_FACTORS[transitType];
-
-  // Flight emissions
-  const shortFlightEmissions =
-    input.shortFlightsPerYear *
-    FLIGHT_EMISSIONS.averageShortDistance *
-    FLIGHT_EMISSIONS.shortFlight;
-  const longFlightEmissions =
-    input.longFlightsPerYear *
-    FLIGHT_EMISSIONS.averageLongDistance *
-    FLIGHT_EMISSIONS.longFlight;
+  const carEmissions = calculateWeeklyDistanceEmissions(
+    input.carKmPerWeek,
+    getEmissionFactor(CAR_EMISSIONS_FACTORS, input.fuelType, 'petrol'),
+  )
+  const transitType = input.transitType ?? 'average'
+  const transitEmissions = calculateWeeklyDistanceEmissions(
+    input.transitKmPerWeek,
+    getEmissionFactor(TRANSIT_EMISSIONS_FACTORS, transitType, 'average'),
+  )
+  const shortFlightEmissions = calculateAnnualTripEmissions(
+    input.shortFlightsPerYear,
+    FLIGHT_EMISSIONS.averageShortDistance,
+    FLIGHT_EMISSIONS.shortFlight,
+  )
+  const longFlightEmissions = calculateAnnualTripEmissions(
+    input.longFlightsPerYear,
+    FLIGHT_EMISSIONS.averageLongDistance,
+    FLIGHT_EMISSIONS.longFlight,
+  )
 
   return {
     car: carEmissions,
@@ -162,99 +233,82 @@ export function calculateTransportEmissions(input: TransportInput): TransportEmi
     shortFlights: shortFlightEmissions,
     longFlights: longFlightEmissions,
     total: carEmissions + transitEmissions + shortFlightEmissions + longFlightEmissions,
-  };
+  }
 }
 
 /**
- * Calculate annual CO2e emissions from home energy
- * Electricity and gas inputs are monthly; multiplied by 12 for annual calculation
- * Household size splits the annual total into per-capita emissions
+ * Calculate annual CO2e emissions from home energy.
+ * Monthly electricity and gas usage are annualised and divided by household size.
  */
 export function calculateHomeEnergyEmissions(input: HomeEnergyInput): HomeEnergyResult {
-  const householdSize = Math.max(1, input.householdSize)
-
-  // Electricity: monthly kWh * 12 months * emission factor
+  const householdSize = Math.max(1, normalizeNonNegativeNumber(input.householdSize))
   const electricityEmissions =
-    (input.electricityKwhPerMonth * MONTHS_PER_YEAR * ENERGY_EMISSIONS_FACTORS.electricity) /
-    householdSize;
-
-  // Gas: monthly kWh * 12 months * emission factor
+    (normalizeNonNegativeNumber(input.electricityKwhPerMonth) *
+      MONTHS_PER_YEAR *
+      ENERGY_EMISSIONS_FACTORS.electricity) /
+    householdSize
   const gasEmissions =
-    (input.gasKwhPerMonth * MONTHS_PER_YEAR * ENERGY_EMISSIONS_FACTORS.gas) /
-    householdSize;
+    (normalizeNonNegativeNumber(input.gasKwhPerMonth) *
+      MONTHS_PER_YEAR *
+      ENERGY_EMISSIONS_FACTORS.gas) /
+    householdSize
 
   return {
     electricity: electricityEmissions,
     gas: gasEmissions,
     total: electricityEmissions + gasEmissions,
-  };
+  }
 }
 
 /**
- * Calculate annual CO2e emissions from diet
- * Uses pre-calculated annual totals by diet type
+ * Calculate annual CO2e emissions from diet.
+ * The source values are stored in tonnes, so they are converted to kilograms.
  */
 export function calculateDietEmissions(dietType: DietType): number {
-  return DIET_EMISSIONS_ANNUAL[dietType] * 1000; // Convert tonnes to kg
+  const annualTonnes = getEmissionFactor(DIET_EMISSIONS_ANNUAL, dietType, 'vegan')
+  return convertTonnesToKilograms(annualTonnes)
 }
 
 /**
- * Calculate annual CO2e emissions from goods purchasing and waste
- * Spending is monthly; multiplied by 12 for annual calculation
- * Waste is weekly; multiplied by 52 for annual calculation
+ * Calculate annual CO2e emissions from goods purchasing and waste.
+ * Monthly spending is annualised, and weekly landfill waste is annualised.
  */
 export function calculateGoodsWasteEmissions(input: GoodsWasteInput): GoodsWasteResult {
-  // Goods: monthly spending £ * 12 months * emission factor
-  const goodsEmissions = input.goodsSpendingPerMonth * MONTHS_PER_YEAR * GOODS_EMISSIONS.spendingEmissions;
-
-  // Waste: weekly kg * 52 weeks * emission factor
-  const wasteEmissions = input.landfillKgPerWeek * WEEKS_PER_YEAR * GOODS_EMISSIONS.landfillEmissions;
+  const goodsEmissions =
+    normalizeNonNegativeNumber(input.goodsSpendingPerMonth) *
+    MONTHS_PER_YEAR *
+    GOODS_EMISSIONS.spendingEmissions
+  const wasteEmissions =
+    normalizeNonNegativeNumber(input.landfillKgPerWeek) *
+    WEEKS_PER_YEAR *
+    GOODS_EMISSIONS.landfillEmissions
 
   return {
     goods: goodsEmissions,
     waste: wasteEmissions,
     total: goodsEmissions + wasteEmissions,
-  };
+  }
 }
 
 /**
- * Calculate total annual carbon footprint
- * Returns breakdown by category plus total in tonnes CO2e
+ * Calculate the total annual carbon footprint.
+ * Returns category totals and a detailed kilogram-to-tonne breakdown.
  */
 export function calculateTotalFootprint(
   transport: TransportInput,
   homeEnergy: HomeEnergyInput,
   diet: DietType,
-  goodsWaste: GoodsWasteInput
+  goodsWaste: GoodsWasteInput,
 ): CarbonFootprintBreakdown {
-  const transportResult = calculateTransportEmissions(transport);
-  const homeEnergyResult = calculateHomeEnergyEmissions(homeEnergy);
-  const dietResult = calculateDietEmissions(diet);
-  const goodsWasteResult = calculateGoodsWasteEmissions(goodsWaste);
+  const transportResult = calculateTransportEmissions(transport)
+  const homeEnergyResult = calculateHomeEnergyEmissions(homeEnergy)
+  const dietResult = calculateDietEmissions(diet)
+  const goodsWasteResult = calculateGoodsWasteEmissions(goodsWaste)
 
-  const totalKg =
-    transportResult.total +
-    homeEnergyResult.total +
-    dietResult +
-    goodsWasteResult.total;
-
-  return {
-    transport: transportResult.total / 1000, // convert to tonnes
-    homeEnergy: homeEnergyResult.total / 1000,
-    diet: dietResult / 1000,
-    goodsAndWaste: goodsWasteResult.total / 1000,
-    total: totalKg / 1000, // convert to tonnes
-    breakdown: {
-      transportDetail: {
-        car: transportResult.car / 1000,
-        transit: transportResult.transit / 1000,
-        flights:
-          (transportResult.shortFlights + transportResult.longFlights) / 1000,
-      },
-      homeEnergyDetail: {
-        electricity: homeEnergyResult.electricity / 1000,
-        gas: homeEnergyResult.gas / 1000,
-      },
-    },
-  };
+  return buildTonnesBreakdown({
+    transport: transportResult,
+    homeEnergy: homeEnergyResult,
+    dietKg: dietResult,
+    goodsWaste: goodsWasteResult,
+  })
 }

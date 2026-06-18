@@ -1,127 +1,212 @@
-import { useMemo } from 'react'
-import React from 'react'
+import { memo } from 'react'
 import type { CarbonFootprintBreakdown } from '../lib/carbonEngine'
-import { SUSTAINABLE_TARGET, GLOBAL_AVERAGE } from '../constants/emissionTargets'
+import { GLOBAL_AVERAGE, SUSTAINABLE_TARGET } from '../constants/emissionTargets'
 import './ResultsBreakdown.css'
 
 interface ResultsBreakdownProps {
   data: CarbonFootprintBreakdown
 }
 
-function ResultsBreakdownComponent({ data }: ResultsBreakdownProps) {
-  const categories = useMemo(
-    () => [
-      { label: 'Transport', value: data.transport, color: '#2563eb' },
-      { label: 'Home Energy', value: data.homeEnergy, color: '#f97316' },
-      { label: 'Diet', value: data.diet, color: '#22c55e' },
-      { label: 'Goods & Waste', value: data.goodsAndWaste, color: '#a855f7' },
-    ],
-    [data.transport, data.homeEnergy, data.diet, data.goodsAndWaste]
-  )
+interface CategorySummary {
+  label: string
+  value: number
+  color: string
+}
 
-  const maxValue = useMemo(
-    () => Math.max(...categories.map((c) => c.value), 0),
-    [categories]
-  )
+interface StatusSummary {
+  className: string
+  text: string
+  icon: string
+}
 
-  let statusClass = 'status-green'
-  let statusText = 'On target'
-  if (data.total > GLOBAL_AVERAGE * 1.5) {
-    statusClass = 'status-red'
-    statusText = 'Well above global average'
-  } else if (data.total > SUSTAINABLE_TARGET * 1.5) {
-    statusClass = 'status-amber'
-    statusText = 'Above sustainable target'
+interface TableRow {
+  detail: string
+  value: number
+}
+
+interface TableSection {
+  category: string
+  rowSpan: number
+  rows: TableRow[]
+}
+
+function buildCategorySummaries(data: CarbonFootprintBreakdown): CategorySummary[] {
+  return [
+    { label: 'Transport', value: data.transport, color: '#1d4ed8' },
+    { label: 'Home Energy', value: data.homeEnergy, color: '#c2410c' },
+    { label: 'Diet', value: data.diet, color: '#15803d' },
+    { label: 'Goods & Waste', value: data.goodsAndWaste, color: '#7e22ce' },
+  ]
+}
+
+function buildStatusSummary(total: number): StatusSummary {
+  if (total <= SUSTAINABLE_TARGET) {
+    return {
+      className: 'status-green',
+      text: 'On target',
+      icon: 'OK',
+    }
   }
 
-  const globalCompare = (data.total / GLOBAL_AVERAGE).toFixed(2)
-  const targetCompare = (data.total / SUSTAINABLE_TARGET).toFixed(2)
+  if (total <= GLOBAL_AVERAGE) {
+    return {
+      className: 'status-amber',
+      text: 'Above sustainable target',
+      icon: '!',
+    }
+  }
 
+  return {
+    className: 'status-red',
+    text: 'Well above global average',
+    icon: 'X',
+  }
+}
+
+function buildTableSections(data: CarbonFootprintBreakdown): TableSection[] {
+  return [
+    {
+      category: 'Transport',
+      rowSpan: 3,
+      rows: [
+        { detail: 'Car', value: data.breakdown.transportDetail.car },
+        { detail: 'Public Transit', value: data.breakdown.transportDetail.transit },
+        { detail: 'Flights', value: data.breakdown.transportDetail.flights },
+      ],
+    },
+    {
+      category: 'Home Energy',
+      rowSpan: 2,
+      rows: [
+        { detail: 'Electricity', value: data.breakdown.homeEnergyDetail.electricity },
+        { detail: 'Gas', value: data.breakdown.homeEnergyDetail.gas },
+      ],
+    },
+    {
+      category: 'Diet',
+      rowSpan: 1,
+      rows: [{ detail: 'Food & Beverages', value: data.diet }],
+    },
+    {
+      category: 'Goods & Waste',
+      rowSpan: 1,
+      rows: [{ detail: 'Purchases & Landfill', value: data.goodsAndWaste }],
+    },
+  ]
+}
+
+function StatusBadge({ status }: { status: StatusSummary }) {
   return (
-    <div className="results-container" role="region" aria-live="polite" aria-label="Carbon footprint results">
-      <div className="total-result">
-        <span className="total-number">{data.total.toFixed(2)}</span>
-        <span className="total-unit">t CO₂e/year</span>
-      </div>
+    <div className={`status-badge ${status.className}`} role="status" aria-label={`Emissions status: ${status.text}`}>
+      {status.icon} {status.text}
+    </div>
+  )
+}
 
-      <div className={`status-badge ${statusClass}`} role="status" aria-label={`Emissions status: ${statusText}`}>
-        {statusClass === 'status-green' ? '✓' : statusClass === 'status-amber' ? '⚠' : '✗'} {statusText}
-      </div>
+function ComparisonSummary({ data }: { data: CarbonFootprintBreakdown }) {
+  return (
+    <p className="comparison-text">
+      That is <strong>{(data.total / SUSTAINABLE_TARGET).toFixed(2)}x</strong> the sustainable target (
+      {SUSTAINABLE_TARGET}t) and <strong>{(data.total / GLOBAL_AVERAGE).toFixed(2)}x</strong> the global average (
+      {GLOBAL_AVERAGE}t)
+    </p>
+  )
+}
 
-      <p className="comparison-text">
-        That is <strong>{targetCompare}x</strong> the sustainable target ({SUSTAINABLE_TARGET}t) and{' '}
-        <strong>{globalCompare}x</strong> the global average ({GLOBAL_AVERAGE}t)
-      </p>
-
-      <div className="breakdown-chart">
-        <h3>Breakdown by Category</h3>
-        <div className="chart-bars">
-          {categories.map((cat) => (
-            <div key={cat.label} className="chart-bar-wrapper">
-              <div
-                className="chart-bar"
-                style={{
-                  width: `${maxValue > 0 ? (cat.value / maxValue) * 100 : 0}%`,
-                  backgroundColor: cat.color,
-                }}
-              >
-                <span className="bar-label">
-                  {cat.label}: {cat.value.toFixed(2)}t
-                </span>
-              </div>
+function CategoryChart({
+  categories,
+  maxValue,
+  ariaLabel,
+}: {
+  categories: CategorySummary[]
+  maxValue: number
+  ariaLabel: string
+}) {
+  return (
+    <div className="breakdown-chart" role="img" aria-label={ariaLabel}>
+      <h3>Breakdown by Category</h3>
+      <div className="chart-bars">
+        {categories.map((category) => (
+          <div key={category.label} className="chart-bar-wrapper">
+            <div
+              className="chart-bar"
+              style={{
+                width: `${maxValue > 0 ? (category.value / maxValue) * 100 : 0}%`,
+                backgroundColor: category.color,
+              }}
+              aria-label={`${category.label} emissions ${category.value.toFixed(2)} tonnes`}
+            >
+              <span className="bar-label">
+                {category.label}: {category.value.toFixed(2)}t
+              </span>
             </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="breakdown-table">
-        <h3>Detailed Breakdown</h3>
-        <table>
-          <thead>
-            <tr>
-              <th scope="col">Category</th>
-              <th scope="col">Details</th>
-              <th scope="col">Emissions (t CO₂e)</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td rowSpan={3}>Transport</td>
-              <td>Car</td>
-              <td>{data.breakdown.transportDetail.car.toFixed(3)}</td>
-            </tr>
-            <tr>
-              <td>Public Transit</td>
-              <td>{data.breakdown.transportDetail.transit.toFixed(3)}</td>
-            </tr>
-            <tr>
-              <td>Flights</td>
-              <td>{data.breakdown.transportDetail.flights.toFixed(3)}</td>
-            </tr>
-            <tr>
-              <td rowSpan={2}>Home Energy</td>
-              <td>Electricity</td>
-              <td>{data.breakdown.homeEnergyDetail.electricity.toFixed(3)}</td>
-            </tr>
-            <tr>
-              <td>Gas</td>
-              <td>{data.breakdown.homeEnergyDetail.gas.toFixed(3)}</td>
-            </tr>
-            <tr>
-              <td>Diet</td>
-              <td>Food & Beverages</td>
-              <td>{data.diet.toFixed(3)}</td>
-            </tr>
-            <tr>
-              <td>Goods & Waste</td>
-              <td>Purchases & Landfill</td>
-              <td>{data.goodsAndWaste.toFixed(3)}</td>
-            </tr>
-          </tbody>
-        </table>
+          </div>
+        ))}
       </div>
     </div>
   )
 }
 
-export const ResultsBreakdown = React.memo(ResultsBreakdownComponent)
+function DetailedBreakdownTable({ sections }: { sections: TableSection[] }) {
+  return (
+    <div className="breakdown-table">
+      <h3>Detailed Breakdown</h3>
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">Category</th>
+            <th scope="col">Details</th>
+            <th scope="col">Emissions (t CO2e)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {sections.map((section) =>
+            section.rows.map((row, index) => (
+              <tr key={`${section.category}-${row.detail}`}>
+                {index === 0 && (
+                  <td rowSpan={section.rowSpan}>{section.category}</td>
+                )}
+                <td>{row.detail}</td>
+                <td>{row.value.toFixed(3)}</td>
+              </tr>
+            )),
+          )}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+function ResultsSummary({ data }: { data: CarbonFootprintBreakdown }) {
+  const status = buildStatusSummary(data.total)
+  const categories = buildCategorySummaries(data)
+  const maxValue = Math.max(...categories.map((category) => category.value), 0)
+
+  return (
+    <>
+      <div className="total-result">
+        <span className="total-number">{data.total.toFixed(2)}</span>
+        <span className="total-unit">t CO2e/year</span>
+      </div>
+
+      <StatusBadge status={status} />
+      <ComparisonSummary data={data} />
+      <CategoryChart
+        categories={categories}
+        maxValue={maxValue}
+        ariaLabel={`Category breakdown chart for transport ${data.transport.toFixed(2)} tonnes, home energy ${data.homeEnergy.toFixed(2)} tonnes, diet ${data.diet.toFixed(2)} tonnes, and goods and waste ${data.goodsAndWaste.toFixed(2)} tonnes`}
+      />
+      <DetailedBreakdownTable sections={buildTableSections(data)} />
+    </>
+  )
+}
+
+function ResultsBreakdownComponent({ data }: ResultsBreakdownProps) {
+  return (
+    <div className="results-container" role="region" aria-live="polite" aria-label="Carbon footprint results">
+      <ResultsSummary data={data} />
+    </div>
+  )
+}
+
+export const ResultsBreakdown = memo(ResultsBreakdownComponent)

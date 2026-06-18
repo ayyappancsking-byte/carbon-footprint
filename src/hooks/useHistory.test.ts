@@ -4,10 +4,12 @@ import { useHistory } from './useHistory'
 describe('useHistory', () => {
   beforeEach(() => {
     localStorage.clear()
+    vi.restoreAllMocks()
   })
 
   afterEach(() => {
     localStorage.clear()
+    vi.restoreAllMocks()
   })
 
   it('should add entry to localStorage', () => {
@@ -103,6 +105,25 @@ describe('useHistory', () => {
     expect(history).toEqual([])
   })
 
+  it('should return empty array if stored history is not an array', () => {
+    localStorage.setItem(
+      'carbon_footprint_history',
+      JSON.stringify({
+        total: 5.5,
+        breakdown: {
+          transport: 2,
+          homeEnergy: 1.5,
+          diet: 1,
+          goodsWaste: 1,
+        },
+      }),
+    )
+
+    const { getHistory } = useHistory()
+
+    expect(getHistory()).toEqual([])
+  })
+
   it('should filter malformed entries from stored history', () => {
     localStorage.setItem(
       'carbon_footprint_history',
@@ -127,6 +148,7 @@ describe('useHistory', () => {
             goodsWaste: 1,
           },
         },
+        null,
       ])
     )
 
@@ -229,6 +251,50 @@ describe('useHistory', () => {
 
     const history = getHistory()
     expect(history[0].breakdown).toEqual(breakdown)
+  })
+
+  it('should return a generic error when saving fails', () => {
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('storage unavailable')
+    })
+
+    const { addEntry } = useHistory()
+
+    const result = addEntry({
+      total: 5.5,
+      breakdown: {
+        transport: 2,
+        homeEnergy: 1.5,
+        diet: 1,
+        goodsWaste: 1,
+      },
+    })
+
+    expect(result.success).toBe(false)
+    expect(result.error).toBe('Failed to save entry')
+  })
+
+  it('should return false when deleting fails', () => {
+    const storedEntry = {
+      date: '2024-06-15T10:30:00Z',
+      total: 5.5,
+      breakdown: {
+        transport: 2,
+        homeEnergy: 1.5,
+        diet: 1,
+        goodsWaste: 1,
+      },
+    }
+
+    localStorage.setItem('carbon_footprint_history', JSON.stringify([storedEntry]))
+
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('storage unavailable')
+    })
+
+    const { deleteEntry } = useHistory()
+
+    expect(deleteEntry(storedEntry.date)).toBe(false)
   })
 
   it('should include ISO timestamp for each saved entry', () => {

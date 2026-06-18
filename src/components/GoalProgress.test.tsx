@@ -11,12 +11,12 @@ describe('GoalProgress', () => {
     localStorage.clear()
   })
 
-  it('returns null/empty when no goal set', () => {
+  it('returns null when no goal is set', () => {
     const { container } = render(<GoalProgress />)
     expect(container.firstChild).toBeNull()
   })
 
-  it('shows progress bar with mathematically correct width %', () => {
+  it('shows a full progress bar when the current footprint is below the goal', () => {
     const goal = {
       target: 4,
       targetYear: 2030,
@@ -38,12 +38,16 @@ describe('GoalProgress', () => {
 
     render(<GoalProgress />)
 
+    const progressBar = screen.getByRole('progressbar', { name: /Carbon goal progress/ })
     const progressFill = document.querySelector('.progress-fill') as HTMLElement
-    const expectedWidth = (2 / 4) * 100
-    expect(progressFill?.style.width).toBe(`${expectedWidth}%`)
+
+    expect(progressFill?.style.width).toBe('100%')
+    expect(progressBar).toHaveAttribute('aria-valuenow', '100')
+    expect(progressBar).toHaveAttribute('aria-valuetext', 'Goal achieved')
+    expect(screen.getByText("You've reached your goal!")).toBeInTheDocument()
   })
 
-  it('shows "Improving" status when latest < previous entry', () => {
+  it('shows improving status when latest is lower than previous entry', () => {
     const goal = {
       target: 2,
       targetYear: 2030,
@@ -65,11 +69,11 @@ describe('GoalProgress', () => {
 
     render(<GoalProgress />)
 
-    expect(screen.getByText(/Improving!/)).toBeInTheDocument()
-    expect(screen.getByText(/Down 1.00t from last entry/)).toBeInTheDocument()
+    expect(screen.getByText(/^Improving$/)).toBeInTheDocument()
+    expect(screen.getByText(/Improving! Down 1.00t CO2e from last entry/)).toBeInTheDocument()
   })
 
-  it('shows "Keep going" when not improving or stable', () => {
+  it('shows keep going when not improving or stable', () => {
     const goal = {
       target: 2,
       targetYear: 2030,
@@ -91,11 +95,11 @@ describe('GoalProgress', () => {
 
     render(<GoalProgress />)
 
-    expect(screen.getByText(/→ Keep going/)).toBeInTheDocument()
-    expect(screen.getByText(/Last entry: 3.00t/)).toBeInTheDocument()
+    expect(screen.getByText('Keep going')).toBeInTheDocument()
+    expect(screen.getByText(/Last entry: 3.00t CO2e/)).toBeInTheDocument()
   })
 
-  it('handles edge case of single history entry correctly', () => {
+  it('handles the single history entry edge case correctly', () => {
     const goal = {
       target: 2,
       targetYear: 2030,
@@ -112,8 +116,8 @@ describe('GoalProgress', () => {
 
     render(<GoalProgress />)
 
-    expect(screen.getByText((_content, element) => element?.textContent === '→ Keep going')).toBeInTheDocument()
+    expect(screen.getByText('Keep going')).toBeInTheDocument()
     expect(screen.queryByText(/Down/)).not.toBeInTheDocument()
-    expect(screen.queryByText(/Improving!/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Improving/)).not.toBeInTheDocument()
   })
 })

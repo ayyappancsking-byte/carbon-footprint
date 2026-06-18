@@ -20,20 +20,20 @@ describe('App Integration Tests', () => {
 
   it('should dismiss onboarding modal when button clicked', () => {
     render(<App />)
-    const getStartedBtn = screen.getByText('Get Started')
+    const getStartedBtn = screen.getByRole('button', { name: /Get started/i })
     fireEvent.click(getStartedBtn)
     expect(screen.queryByText('Welcome!')).not.toBeInTheDocument()
   })
 
   it('should show validation error for out-of-range car distance', async () => {
     render(<App />)
-    fireEvent.click(screen.getByText('Get Started'))
+    fireEvent.click(screen.getByRole('button', { name: /Get started/i }))
 
     const inputs = screen.getAllByRole('spinbutton')
     const carDistanceInput = inputs[0] as HTMLInputElement
     fireEvent.change(carDistanceInput, { target: { value: '6000' } })
 
-    const calculateBtn = screen.getByText('Calculate my footprint')
+    const calculateBtn = screen.getByRole('button', { name: /Calculate my carbon footprint/i })
     fireEvent.click(calculateBtn)
 
     await waitFor(() => {
@@ -43,24 +43,24 @@ describe('App Integration Tests', () => {
 
   it('should save calculation to localStorage', async () => {
     render(<App />)
-    fireEvent.click(screen.getByText('Get Started'))
+    fireEvent.click(screen.getByRole('button', { name: /Get started/i }))
 
     const inputs = screen.getAllByRole('spinbutton')
     const carDistanceInput = inputs[0] as HTMLInputElement
     fireEvent.change(carDistanceInput, { target: { value: '50' } })
 
-    const calculateBtn = screen.getByText('Calculate my footprint')
+    const calculateBtn = screen.getByRole('button', { name: /Calculate my carbon footprint/i })
     fireEvent.click(calculateBtn)
 
     await waitFor(() => {
-      expect(screen.getByText(/t CO₂e\/year/)).toBeInTheDocument()
+      expect(screen.getByText(/t CO2e\/year/)).toBeInTheDocument()
     })
 
-    const saveBtn = screen.getByText('Save this entry to my history')
+    const saveBtn = screen.getByRole('button', { name: /Save this entry to history/i })
     fireEvent.click(saveBtn)
 
     await waitFor(() => {
-      expect(screen.getByText('Saved!')).toBeInTheDocument()
+      expect(screen.getByText('Saved!')).toHaveAttribute('role', 'status')
     })
 
     const stored = localStorage.getItem('carbon_footprint_history')
@@ -71,45 +71,39 @@ describe('App Integration Tests', () => {
 
   it('should display results and recommendations after calculation', async () => {
     render(<App />)
-    fireEvent.click(screen.getByText('Get Started'))
+    fireEvent.click(screen.getByRole('button', { name: /Get started/i }))
 
     const inputs = screen.getAllByRole('spinbutton')
     const carDistanceInput = inputs[0] as HTMLInputElement
     fireEvent.change(carDistanceInput, { target: { value: '50' } })
 
-    const calculateBtn = screen.getByText('Calculate my footprint')
+    const calculateBtn = screen.getByRole('button', { name: /Calculate my carbon footprint/i })
     fireEvent.click(calculateBtn)
 
     await waitFor(() => {
-      expect(screen.getByText(/t CO₂e\/year/)).toBeInTheDocument()
+      expect(screen.getByText(/t CO2e\/year/)).toBeInTheDocument()
     })
 
-    // Check for results breakdown
     expect(screen.getByText(/Breakdown by Category/)).toBeInTheDocument()
     expect(screen.getByText(/Detailed Breakdown/)).toBeInTheDocument()
-
-    // Check for recommendations section (could be "Personalized Insights" or "Quick Tips")
     expect(screen.queryByText(/Personalized Insights/)).toBeInTheDocument()
   })
 
   it('should display goal setting section in results', async () => {
     render(<App />)
-    fireEvent.click(screen.getByText('Get Started'))
+    fireEvent.click(screen.getByRole('button', { name: /Get started/i }))
 
     const inputs = screen.getAllByRole('spinbutton')
     const carDistanceInput = inputs[0] as HTMLInputElement
     fireEvent.change(carDistanceInput, { target: { value: '50' } })
 
-    const calculateBtn = screen.getByText('Calculate my footprint')
+    const calculateBtn = screen.getByRole('button', { name: /Calculate my carbon footprint/i })
     fireEvent.click(calculateBtn)
 
     await waitFor(() => {
-      expect(screen.getByText(/t CO₂e\/year/)).toBeInTheDocument()
+      expect(screen.getByText(/t CO2e\/year/)).toBeInTheDocument()
     })
 
-    // Check for goal setting
     expect(screen.getByText('My Carbon Goal')).toBeInTheDocument()
   })
 })
-
-

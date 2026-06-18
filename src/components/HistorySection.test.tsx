@@ -1,116 +1,146 @@
-import { describe, it, expect, afterEach, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
 import { HistorySection } from './HistorySection'
-import { useHistory } from '../hooks/useHistory'
+import { useHistory, type HistoryEntry } from '../hooks/useHistory'
 
 vi.mock('../hooks/useHistory')
 
+const entries = [
+  {
+    date: '2024-01-02T12:00:00.000Z',
+    total: 5.2,
+    breakdown: {
+      transport: 1.9,
+      homeEnergy: 1.5,
+      diet: 1.2,
+      goodsWaste: 0.6,
+    },
+  },
+  {
+    date: '2024-01-01T12:00:00.000Z',
+    total: 5.5,
+    breakdown: {
+      transport: 2.0,
+      homeEnergy: 1.5,
+      diet: 1.2,
+      goodsWaste: 0.8,
+    },
+  },
+]
+
+function setHistoryMock(history: HistoryEntry[] = []) {
+  const deleteEntry = vi.fn()
+
+  vi.mocked(useHistory).mockReturnValue({
+    getHistory: vi.fn(() => history),
+    addEntry: vi.fn(),
+    deleteEntry,
+  })
+
+  return { deleteEntry }
+}
+
 describe('HistorySection', () => {
-  afterEach(() => {
+  beforeEach(() => {
+    localStorage.clear()
     vi.clearAllMocks()
   })
 
-  beforeEach(() => {
-    vi.mocked(useHistory).mockReturnValue({
-      getHistory: vi.fn(() => []),
-      addEntry: vi.fn(),
-      deleteEntry: vi.fn(),
-    })
+  afterEach(() => {
+    localStorage.clear()
+    vi.clearAllMocks()
   })
 
-  it('should render history section header', () => {
+  it('renders the empty history state', () => {
+    setHistoryMock([])
+
     render(<HistorySection />)
+
     expect(screen.getByText('Your History')).toBeInTheDocument()
-  })
-
-  it('should display empty state when no history entries exist', () => {
-    render(<HistorySection />)
     expect(
-      screen.getByText(/No saved entries yet/i)
+      screen.getByText(/No saved entries yet. Calculate and save a footprint to start tracking your progress./i),
     ).toBeInTheDocument()
   })
 
-  it('should display single entry state when only one entry exists', () => {
-    const mockEntry = {
-      date: '2024-01-01T12:00:00.000Z',
-      total: 5.5,
-      breakdown: {
-        transport: 2.0,
-        homeEnergy: 1.5,
-        diet: 1.2,
-        goodsWaste: 0.8,
-      },
-    }
-
-    vi.mocked(useHistory).mockReturnValue({
-      getHistory: vi.fn(() => [mockEntry]),
-      addEntry: vi.fn(),
-      deleteEntry: vi.fn(),
-    })
+  it('renders the single-entry state when only one entry exists', () => {
+    setHistoryMock([entries[0]])
 
     render(<HistorySection />)
+
     expect(screen.getByText(/Save more entries to see your trend/i)).toBeInTheDocument()
+    expect(screen.getByText(/5.20 t CO2e\/year/)).toBeInTheDocument()
   })
 
-  it('opens the detail modal from the keyboard', () => {
-    const mockEntry = {
-      date: '2024-01-01T12:00:00.000Z',
-      total: 5.5,
-      breakdown: {
-        transport: 2.0,
-        homeEnergy: 1.5,
-        diet: 1.2,
-        goodsWaste: 0.8,
-      },
-    }
-
-    vi.mocked(useHistory).mockReturnValue({
-      getHistory: vi.fn(() => [mockEntry]),
-      addEntry: vi.fn(),
-      deleteEntry: vi.fn(),
-    })
+  it('shows the chart loading fallback before the chart renders', async () => {
+    setHistoryMock(entries)
 
     render(<HistorySection />)
 
-    const row = document.querySelector('.history-row-clickable') as HTMLTableRowElement
-    fireEvent.keyDown(row, { key: 'Enter' })
+    expect(screen.getByRole('status', { name: /Loading trend chart/i })).toBeInTheDocument()
+    expect(screen.getByText(/Entries/)).toBeInTheDocument()
 
-    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.queryByRole('status', { name: /Loading trend chart/i })).not.toBeInTheDocument()
+    }, { timeout: 3000 })
+  })
+
+  it('opens the detail modal from a row click and ignores delete button clicks', async () => {
+    const { deleteEntry } = setHistoryMock(entries)
+    vi.spyOn(window, 'confirm').mockReturnValue(false)
+
+    render(<HistorySection />)
+
+    fireEvent.click(screen.getAllByRole('button', { name: /Delete this entry/i })[0])
+    expect(deleteEntry).not.toHaveBeenCalled()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /View details for the entry from Jan 2, 2024/i }))
+    expect(await screen.findByRole('dialog')).toBeInTheDocument()
     expect(screen.getByText('Entry Details')).toBeInTheDocument()
   })
 
-  it('should display chart when multiple entries exist', () => {
-    const mockEntries = [
-      {
-        date: '2024-01-01T12:00:00.000Z',
-        total: 5.5,
-        breakdown: {
-          transport: 2.0,
-          homeEnergy: 1.5,
-          diet: 1.2,
-          goodsWaste: 0.8,
-        },
-      },
-      {
-        date: '2024-01-02T12:00:00.000Z',
-        total: 5.2,
-        breakdown: {
-          transport: 1.9,
-          homeEnergy: 1.5,
-          diet: 1.2,
-          goodsWaste: 0.6,
-        },
-      },
-    ]
-
-    vi.mocked(useHistory).mockReturnValue({
-      getHistory: vi.fn(() => mockEntries),
-      addEntry: vi.fn(),
-      deleteEntry: vi.fn(),
-    })
+  it('opens the modal from the space key', async () => {
+    setHistoryMock([entries[0]])
 
     render(<HistorySection />)
-    expect(screen.getByText(/Your History/)).toBeInTheDocument()
+
+    const row = screen.getByRole('button', {
+      name: /View details for the entry from Jan 2, 2024/i,
+    })
+
+    fireEvent.keyDown(row, { key: ' ' })
+
+    expect(await screen.findByRole('dialog')).toBeInTheDocument()
+  })
+
+  it('announces successful deletions and closes the selected modal entry', async () => {
+    const { deleteEntry } = setHistoryMock([entries[0]])
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    deleteEntry.mockReturnValue(true)
+
+    render(<HistorySection />)
+
+    fireEvent.click(screen.getByRole('button', { name: /View details for the entry from Jan 2, 2024/i }))
+    expect(await screen.findByRole('dialog')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /Delete this entry/i }))
+
+    expect(deleteEntry).toHaveBeenCalledWith(entries[0].date)
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('History entry deleted.')
+  })
+
+  it('announces failed deletions with an error banner', async () => {
+    const { deleteEntry } = setHistoryMock([entries[0]])
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    deleteEntry.mockReturnValue(false)
+
+    render(<HistorySection />)
+
+    fireEvent.click(screen.getByRole('button', { name: /Delete this entry/i }))
+
+    expect(deleteEntry).toHaveBeenCalledWith(entries[0].date)
+    expect(screen.getByRole('alert')).toHaveTextContent('Failed to delete history entry.')
   })
 })
